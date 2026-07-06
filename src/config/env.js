@@ -1,0 +1,46 @@
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const toList = (value) =>
+  value
+    ? value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
+
+export const env = {
+  NODE_ENV: process.env.NODE_ENV || "development",
+  PORT: Number(process.env.PORT || 5000),
+  API_PREFIX: process.env.API_PREFIX || "/api/v1",
+  CLIENT_ORIGINS: toList(process.env.CLIENT_ORIGINS),
+  MONGODB_URI: process.env.MONGODB_URI || "mongodb://localhost:27017/",
+  JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET || "change-me-access",
+  JWT_ACCESS_EXPIRES_IN: process.env.JWT_ACCESS_EXPIRES_IN || "15m",
+  JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "change-me-refresh",
+  JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
+  JWT_REFRESH_COOKIE_NAME: process.env.JWT_REFRESH_COOKIE_NAME || "romz_refresh",
+  REDIS_URL: process.env.REDIS_URL || "",
+  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || "",
+  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || "",
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || "",
+  SMTP_HOST: process.env.SMTP_HOST || "",
+  SMTP_PORT: Number(process.env.SMTP_PORT || 587),
+  SMTP_USER: process.env.SMTP_USER || "",
+  SMTP_PASS: process.env.SMTP_PASS || "",
+  SMTP_FROM: process.env.SMTP_FROM || "ROMZ <no-reply@romz.local>",
+  ADMIN_NAME: process.env.ADMIN_NAME || "ROMZ Admin",
+  ADMIN_EMAIL: process.env.ADMIN_EMAIL || "admin@romz.local",
+  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || "change-me",
+  ADMIN_PHONE: process.env.ADMIN_PHONE || "",
+  PAYMOB_API_KEY: process.env.PAYMOB_API_KEY || "",
+  PAYMOB_SECRET_KEY: process.env.PAYMOB_SECRET_KEY || "",
+  PAYMOB_PUBLIC_KEY: process.env.PAYMOB_PUBLIC_KEY || "",
+  PAYMOB_HMAC_SECRET: process.env.PAYMOB_HMAC_SECRET || "",
+  PAYMOB_CARD_INTEGRATION_ID: process.env.PAYMOB_CARD_INTEGRATION_ID || "",
+  PAYMOB_IFRAME_ID: process.env.PAYMOB_IFRAME_ID || "",
+  PAYMOB_BASE_URL: process.env.PAYMOB_BASE_URL || "https://accept.paymob.com"
+};
+
+export const isProduction = env.NODE_ENV === "production";
