@@ -21,6 +21,9 @@ export const env = {
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "change-me-refresh",
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
   JWT_REFRESH_COOKIE_NAME: process.env.JWT_REFRESH_COOKIE_NAME || "romz_refresh",
+  JWT_REFRESH_COOKIE_SECURE: process.env.JWT_REFRESH_COOKIE_SECURE || "",
+  JWT_REFRESH_COOKIE_SAME_SITE: process.env.JWT_REFRESH_COOKIE_SAME_SITE || "",
+  JWT_REFRESH_COOKIE_PARTITIONED: process.env.JWT_REFRESH_COOKIE_PARTITIONED || "",
   REDIS_URL: process.env.REDIS_URL || "",
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || "",
   CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || "",
@@ -40,7 +43,21 @@ export const env = {
   PAYMOB_HMAC_SECRET: process.env.PAYMOB_HMAC_SECRET || "",
   PAYMOB_CARD_INTEGRATION_ID: process.env.PAYMOB_CARD_INTEGRATION_ID || "",
   PAYMOB_IFRAME_ID: process.env.PAYMOB_IFRAME_ID || "",
-  PAYMOB_BASE_URL: process.env.PAYMOB_BASE_URL || "https://accept.paymob.com"
+  PAYMOB_CHECKOUT_FLOW: process.env.PAYMOB_CHECKOUT_FLOW || "auto",
+  PAYMOB_BASE_URL: process.env.PAYMOB_BASE_URL || "https://accept.paymob.com",
+  MYLERZ_BASE_URL:
+    process.env.MYLERZ_BASE_URL || "https://mylerzintegrationtest.mylerz.com",
+  MYLERZ_USERNAME: process.env.MYLERZ_USERNAME || "",
+  MYLERZ_PASSWORD: process.env.MYLERZ_PASSWORD || "",
+  MYLERZ_MERCHANT_ID: process.env.MYLERZ_MERCHANT_ID || "",
+  MYLERZ_WAREHOUSE_NAME: process.env.MYLERZ_WAREHOUSE_NAME || "",
+  MYLERZ_DEFAULT_SERVICE_TYPE: process.env.MYLERZ_DEFAULT_SERVICE_TYPE || "DTD",
+  MYLERZ_DEFAULT_SERVICE: process.env.MYLERZ_DEFAULT_SERVICE || "ND",
+  MYLERZ_DEFAULT_SERVICE_CATEGORY: process.env.MYLERZ_DEFAULT_SERVICE_CATEGORY || "DELIVERY",
+  MYLERZ_DEFAULT_ADDRESS_CATEGORY: process.env.MYLERZ_DEFAULT_ADDRESS_CATEGORY || "H",
+  MYLERZ_DEFAULT_PRODUCT_CATEGORY: process.env.MYLERZ_DEFAULT_PRODUCT_CATEGORY || "Fashion",
+  MYLERZ_DEFAULT_WEIGHT_KG: Number(process.env.MYLERZ_DEFAULT_WEIGHT_KG || 1),
+  MYLERZ_CURRENCY: process.env.MYLERZ_CURRENCY || "EGP"
 };
 
 export const isProduction = env.NODE_ENV === "production";

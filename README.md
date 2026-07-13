@@ -37,4 +37,8 @@ npm test
 npm audit --omit=dev
 ```
 
+## API Documentation
+
+See `API_DOCUMENTATION.md` for frontend integration details, including every API request and response shape.
+
 See `DEPLOYMENT.md` for production deployment steps.

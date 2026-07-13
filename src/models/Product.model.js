@@ -42,6 +42,11 @@ const productSchema = new mongoose.Schema(
     slug: { type: String, trim: true, lowercase: true, required: true, unique: true },
     description: { type: localizedStringSchema, required: true },
     category: { type: mongoose.Schema.Types.ObjectId, ref: "Category", required: true, index: true },
+    categories: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: "Category" }],
+      default: [],
+      index: true
+    },
     collections: [{ type: mongoose.Schema.Types.ObjectId, ref: "Category" }],
     basePrice: { type: Number, min: 0, required: true },
     salePrice: { type: Number, min: 0, default: null },
@@ -62,6 +67,7 @@ const productSchema = new mongoose.Schema(
 );
 
 productSchema.index({ category: 1, isActive: 1 });
+productSchema.index({ categories: 1, isActive: 1 });
 productSchema.index({ badges: 1, isActive: 1 });
 productSchema.index({ "variants.sku": 1 });
 productSchema.index({ isActive: 1, createdAt: -1 });

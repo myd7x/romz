@@ -85,7 +85,12 @@ const orderSchema = new mongoose.Schema(
     courier: {
       name: { type: String, trim: true, default: "" },
       trackingNumber: { type: String, trim: true, default: "" },
-      trackingUrl: { type: String, trim: true, default: "" }
+      trackingUrl: { type: String, trim: true, default: "" },
+      pickupOrderCode: { type: String, trim: true, default: "" },
+      reference: { type: String, trim: true, default: "" },
+      status: { type: String, trim: true, default: "" },
+      lastSyncedAt: { type: Date, default: null },
+      raw: { type: mongoose.Schema.Types.Mixed, default: null }
     },
     cancelledReason: { type: String, trim: true, default: "" }
   },

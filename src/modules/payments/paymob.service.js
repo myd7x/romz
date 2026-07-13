@@ -40,6 +40,14 @@ const hasUnifiedCheckoutConfig = () => Boolean(env.PAYMOB_SECRET_KEY && env.PAYM
 const hasLegacyIframeConfig = () =>
   Boolean(env.PAYMOB_API_KEY && env.PAYMOB_CARD_INTEGRATION_ID && env.PAYMOB_IFRAME_ID);
 
+const shouldUseUnifiedCheckout = () =>
+  env.PAYMOB_CHECKOUT_FLOW !== "legacy_iframe" &&
+  hasUnifiedCheckoutConfig();
+
+const shouldUseLegacyIframe = () =>
+  env.PAYMOB_CHECKOUT_FLOW === "legacy_iframe" ||
+  !hasUnifiedCheckoutConfig();
+
 const ensurePaymobConfig = () => {
   if (!hasUnifiedCheckoutConfig() && requiredPaymobConfig().some((value) => !value)) {
     throw new AppError("Paymob credentials are not configured", 500);
@@ -277,7 +285,7 @@ export const createPaymentIntent = async (
     throw new AppError("Cancelled orders cannot be paid", 400);
   }
 
-  if (hasUnifiedCheckoutConfig()) {
+  if (shouldUseUnifiedCheckout()) {
     const intention = await createUnifiedIntention(order, {
       redirectionUrl,
       notificationUrl
@@ -303,7 +311,7 @@ export const createPaymentIntent = async (
     };
   }
 
-  if (!hasLegacyIframeConfig()) {
+  if (shouldUseLegacyIframe() && !hasLegacyIframeConfig()) {
     throw new AppError("Paymob legacy iframe credentials are not configured", 500);
   }
 

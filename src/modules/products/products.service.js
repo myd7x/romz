@@ -1,15 +1,30 @@
 import mongoose from "mongoose";
 import Category from "../../models/Category.model.js";
 import Product from "../../models/Product.model.js";
-import { uploadImageBuffer } from "../../services/imageUpload.service.js";
+import { deleteImage, uploadImageBuffer } from "../../services/imageUpload.service.js";
 import { AppError } from "../../utils/AppError.js";
 import { buildMeta, buildPagination, buildSort } from "../../utils/apiFeatures.js";
 import { createSlug, ensureUniqueSlug } from "../../utils/slug.js";
 
 const productPopulate = [
   { path: "category", select: "name slug" },
+  { path: "categories", select: "name slug" },
   { path: "collections", select: "name slug" }
 ];
+
+const withCategoryFallback = (product) => {
+  if (!product) return product;
+
+  const value = product.toObject ? product.toObject() : product;
+
+  if ((!value.categories || value.categories.length === 0) && value.category) {
+    value.categories = [value.category];
+  }
+
+  return value;
+};
+
+const withCategoryFallbackList = (products) => products.map((product) => withCategoryFallback(product));
 
 const splitQueryList = (value) =>
   String(value || "")
@@ -22,33 +37,104 @@ const buildProductSlug = async (payload, currentId = null) => {
   return ensureUniqueSlug(Product, base, currentId);
 };
 
-const assertCategoriesExist = async ({ category, collections = [] }) => {
-  const ids = [category, ...collections].filter(Boolean);
+const uniqueIds = (ids = []) => [...new Set(ids.filter(Boolean).map(String))];
+
+const normalizeProductCategories = (payload) => {
+  if (!payload.category && !payload.categories) return payload;
+
+  const categories = uniqueIds(payload.categories?.length ? payload.categories : [payload.category]);
+  const primaryCategory = payload.category || categories[0];
+
+  payload.category = primaryCategory;
+  payload.categories = uniqueIds([primaryCategory, ...categories]);
+
+  return payload;
+};
+
+const assertCategoriesExist = async ({ category, categories = [], collections = [] }) => {
+  const ids = uniqueIds([category, ...categories, ...collections]);
   if (!ids.length) return;
 
   const count = await Category.countDocuments({ _id: { $in: ids } });
-  if (count !== new Set(ids.map(String)).size) {
+  if (count !== ids.length) {
     throw new AppError("One or more categories were not found", 404);
   }
 };
 
-const uploadRequestImages = async (files = []) => {
+const uploadRequestImages = async (files = [], colors = []) => {
   if (!files.length) return [];
 
-  return Promise.all(files.map((file) => uploadImageBuffer(file, "romz/products")));
+  return Promise.all(
+    files.map(async (file, index) => ({
+      ...(await uploadImageBuffer(file, "romz/products")),
+      color: colors[index] || ""
+    }))
+  );
+};
+
+const applyImageColors = (images = [], colors = []) =>
+  images.map((image, index) => ({
+    ...image,
+    ...(colors[index] !== undefined ? { color: colors[index] || "" } : {})
+  }));
+
+const splitImageColors = ({ imageColors = [], existingImages = [], files = [] }) => {
+  if (!existingImages.length) {
+    return {
+      existingImageColors: [],
+      uploadImageColors: imageColors
+    };
+  }
+
+  if (imageColors.length === existingImages.length + files.length) {
+    return {
+      existingImageColors: imageColors.slice(0, existingImages.length),
+      uploadImageColors: imageColors.slice(existingImages.length)
+    };
+  }
+
+  if (!files.length && imageColors.length === existingImages.length) {
+    return {
+      existingImageColors: imageColors,
+      uploadImageColors: []
+    };
+  }
+
+  return {
+    existingImageColors: [],
+    uploadImageColors: imageColors
+  };
+};
+
+const getImageId = (image) => String(image?.publicId || image?.url || "");
+
+const getRemovedImages = (currentImages = [], nextImages = []) => {
+  const nextIds = new Set(nextImages.map(getImageId).filter(Boolean));
+  return currentImages.filter((image) => {
+    const imageId = getImageId(image);
+    return imageId && !nextIds.has(imageId);
+  });
+};
+
+const deleteProductImages = async (images = []) => {
+  await Promise.all(images.map((image) => deleteImage(image.publicId || image.url)));
 };
 
 const buildListFilter = async (query) => {
   const filter = { isActive: true };
 
   if (query.category) {
+    let categoryId = "";
+
     if (mongoose.isValidObjectId(query.category)) {
-      filter.category = query.category;
+      categoryId = query.category;
     } else {
       const category = await Category.findOne({ slug: query.category, isActive: true }).select("_id");
       if (!category) return { _id: null };
-      filter.category = category._id;
+      categoryId = category._id;
     }
+
+    filter.$or = [{ category: categoryId }, { categories: categoryId }];
   }
 
   const sizes = splitQueryList(query.size);
@@ -95,16 +181,23 @@ const mapSort = (query) => {
 };
 
 export const createProduct = async (payload, files = []) => {
+  normalizeProductCategories(payload);
   await assertCategoriesExist(payload);
 
-  const uploadedImages = await uploadRequestImages(files);
+  const imageColors = payload.imageColors || [];
+  delete payload.imageColors;
+
+  const uploadedImages = await uploadRequestImages(files, imageColors);
   const slug = await buildProductSlug(payload);
 
-  return Product.create({
+  const product = await Product.create({
     ...payload,
     slug,
-    images: [...(payload.images || []), ...uploadedImages]
+    images: uploadedImages
   });
+
+  await product.populate(productPopulate);
+  return withCategoryFallback(product);
 };
 
 export const listProducts = async (query) => {
@@ -123,7 +216,7 @@ export const listProducts = async (query) => {
   ]);
 
   return {
-    products,
+    products: withCategoryFallbackList(products),
     meta: buildMeta({ ...pagination, total })
   };
 };
@@ -139,7 +232,7 @@ export const getProductBySlug = async (slug) => {
     throw new AppError("Product not found", 404);
   }
 
-  return product;
+  return withCategoryFallback(product);
 };
 
 export const getProductById = async (id) => {
@@ -149,7 +242,7 @@ export const getProductById = async (id) => {
     throw new AppError("Product not found", 404);
   }
 
-  return product;
+  return withCategoryFallback(product);
 };
 
 export const updateProduct = async (id, payload, files = []) => {
@@ -159,24 +252,58 @@ export const updateProduct = async (id, payload, files = []) => {
     throw new AppError("Product not found", 404);
   }
 
+  const hasProductUpdate =
+    files.length > 0 || Object.keys(payload).some((key) => key !== "imageColors");
+
+  if (!hasProductUpdate) {
+    throw new AppError("No product updates provided", 400);
+  }
+
   await assertCategoriesExist({
     category: payload.category,
+    categories: payload.categories,
     collections: payload.collections
   });
 
-  const uploadedImages = await uploadRequestImages(files);
+  const existingImages = payload.existingImages;
+  const explicitExistingImageColors = payload.existingImageColors || [];
+  const imageColors = payload.imageColors || [];
+
+  delete payload.existingImages;
+  delete payload.existingImageColors;
+  delete payload.imageColors;
+
+  const { existingImageColors, uploadImageColors } = splitImageColors({
+    imageColors,
+    existingImages: existingImages || [],
+    files
+  });
+  const normalizedExistingImages = existingImages
+    ? applyImageColors(existingImages, explicitExistingImageColors.length ? explicitExistingImageColors : existingImageColors)
+    : undefined;
+  const uploadedImages = await uploadRequestImages(files, uploadImageColors);
+  const removedImages =
+    normalizedExistingImages === undefined
+      ? []
+      : getRemovedImages(product.images, [...normalizedExistingImages, ...uploadedImages]);
 
   if (payload.slug) {
     payload.slug = await buildProductSlug(payload, id);
   }
 
+  normalizeProductCategories(payload);
+
   if (uploadedImages.length) {
-    payload.images = [...(payload.images || product.images), ...uploadedImages];
+    payload.images = [...(normalizedExistingImages || product.images), ...uploadedImages];
+  } else if (normalizedExistingImages) {
+    payload.images = normalizedExistingImages;
   }
 
   product.set(payload);
   await product.save();
-  return product.populate(productPopulate);
+  await deleteProductImages(removedImages);
+  await product.populate(productPopulate);
+  return withCategoryFallback(product);
 };
 
 export const deleteProduct = async (id) => {
@@ -186,26 +313,34 @@ export const deleteProduct = async (id) => {
     throw new AppError("Product not found", 404);
   }
 
+  const imagesToDelete = [...product.images];
+
   product.isActive = false;
+  product.images = [];
   await product.save();
+  await deleteProductImages(imagesToDelete);
 };
 
 export const getRelatedProducts = async (slug, limit = 4) => {
-  const product = await Product.findOne({ slug, isActive: true }).select("_id category");
+  const product = await Product.findOne({ slug, isActive: true }).select("_id category categories");
 
   if (!product) {
     throw new AppError("Product not found", 404);
   }
 
-  return Product.find({
+  const categoryIds = product.categories?.length ? product.categories : [product.category];
+
+  const products = await Product.find({
     _id: { $ne: product._id },
-    category: product.category,
+    $or: [{ category: { $in: categoryIds } }, { categories: { $in: categoryIds } }],
     isActive: true
   })
     .sort({ sold: -1, createdAt: -1 })
     .limit(Math.min(Number(limit) || 4, 12))
     .populate(productPopulate)
     .lean();
+
+  return withCategoryFallbackList(products);
 };
 
 export const getHomeProducts = async () => {
@@ -219,5 +354,9 @@ export const getHomeProducts = async () => {
       .lean()
   ]);
 
-  return { newArrivals, bestSellers, saleProducts };
+  return {
+    newArrivals: withCategoryFallbackList(newArrivals),
+    bestSellers: withCategoryFallbackList(bestSellers),
+    saleProducts: withCategoryFallbackList(saleProducts)
+  };
 };

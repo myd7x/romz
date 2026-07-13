@@ -4,7 +4,7 @@ This file is the working agreement for building the ROMZ backend together.
 
 ## Scope
 
-- Backend only: Express.js, Mongoose, MongoDB, Redis, Cloudinary, Paymob, courier integrations, email, and admin analytics APIs.
+- Backend only: Express.js, Mongoose, MongoDB, Redis, local Multer product uploads, Paymob, courier integrations, email, and admin analytics APIs.
 - Frontend is out of scope for this workspace unless you explicitly ask for it later.
 - The backend should serve both the storefront and dashboard through REST JSON APIs.
 
@@ -42,11 +42,11 @@ Planned work:
 - API filter, sort, pagination utility.
 - JWT access and refresh token helpers.
 - Admin role guard.
-- Multer memory upload and image compression middleware.
+- Multer memory upload and image compression middleware; product photos use `multipart/form-data` files in the `images` field and save locally under `/uploads`.
 - Redis client/cache helpers.
 
 Ask me before:
-- Choosing production origins.
+- Re-locking CORS to a production origin allowlist.
 - Finalizing refresh-token cookie settings.
 - Enabling Redis as required instead of optional.
 - Choosing deployment platform.
@@ -209,11 +209,13 @@ Implemented so far:
 
 Current backend defaults:
 - Keep API prefix as `/api/v1`.
+- CORS is open: the API reflects any browser origin and allows credentials.
 - Local MongoDB connection is `mongodb://localhost:27017/`.
 - Use email OTP first.
 - Phone is optional at registration.
-- Refresh tokens use httpOnly cookies.
+- Refresh tokens use httpOnly cookies with `SameSite=None`, `Secure`, and `Partitioned` for cross-site HTTPS admin refresh flows.
 - Product variant sizes are flexible strings for now, so admin can use `S`, `M`, `L`, `XL`, `XXL`, `3XL`, or future size labels without a code change.
+- Product photo admin workflow is Multer-first: send new photos as `images` files, optional uploaded-photo colors as `imageColors`, and use `existingImages` only on update to keep/reorder/remove current local `/uploads` images before appending new uploads.
 - One coupon per cart for launch. No coupon stacking.
 - Order numbers use the `RZ-YYYY-00001` format.
 - COD orders decrement stock at order creation. Paymob orders stay pending and stock is reserved in B5 after verified payment.

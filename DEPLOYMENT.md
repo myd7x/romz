@@ -14,6 +14,9 @@ Use this before deploying the backend to Railway, Render, VPS, or a similar Node
 - `JWT_ACCESS_EXPIRES_IN=15m`
 - `JWT_REFRESH_EXPIRES_IN=7d`
 - `JWT_REFRESH_COOKIE_NAME=romz_refresh`
+- `JWT_REFRESH_COOKIE_SECURE` optional override
+- `JWT_REFRESH_COOKIE_SAME_SITE` optional override: `lax`, `strict`, or `none`
+- `JWT_REFRESH_COOKIE_PARTITIONED` optional override
 
 ## Optional/Feature Environment
 
@@ -32,7 +35,20 @@ Use this before deploying the backend to Railway, Render, VPS, or a similar Node
 - `PAYMOB_HMAC_SECRET`
 - `PAYMOB_CARD_INTEGRATION_ID`
 - `PAYMOB_IFRAME_ID`
+- `PAYMOB_CHECKOUT_FLOW=auto` or `legacy_iframe`
 - `PAYMOB_BASE_URL=https://accept.paymob.com`
+- `MYLERZ_BASE_URL=https://mylerzintegrationtest.mylerz.com` for test or `https://integration.mylerz.net` for production
+- `MYLERZ_USERNAME`
+- `MYLERZ_PASSWORD`
+- `MYLERZ_MERCHANT_ID`
+- `MYLERZ_WAREHOUSE_NAME`
+- `MYLERZ_DEFAULT_SERVICE_TYPE=DTD`
+- `MYLERZ_DEFAULT_SERVICE=ND`
+- `MYLERZ_DEFAULT_SERVICE_CATEGORY=DELIVERY`
+- `MYLERZ_DEFAULT_ADDRESS_CATEGORY=H`
+- `MYLERZ_DEFAULT_PRODUCT_CATEGORY=Fashion`
+- `MYLERZ_DEFAULT_WEIGHT_KG=1`
+- `MYLERZ_CURRENCY=EGP`
 
 Paymob supports two configured flows in this backend:
 
@@ -82,7 +98,7 @@ GET http://localhost:5000/api/v1/health/ready
 
 ## External Services
 
-- Configure Cloudinary before product image uploads.
+- Product image uploads are stored on the server filesystem under `uploads/products`; make sure the deployment persists that directory or mounts durable storage.
 - Configure SMTP before customer-facing emails.
 - Configure Paymob credentials before live online payments.
 - Configure Redis only when caching is needed in production.

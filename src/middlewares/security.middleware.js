@@ -2,16 +2,9 @@ import cors from "cors";
 import rateLimit from "express-rate-limit";
 import mongoSanitize from "express-mongo-sanitize";
 import helmet from "helmet";
-import { env, isProduction } from "../config/env.js";
 
 const corsOptions = {
-  origin(origin, callback) {
-    if (!origin || !isProduction || env.CLIENT_ORIGINS.includes(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new Error("Origin is not allowed by CORS"));
-  },
+  origin: true,
   credentials: true
 };
 
@@ -23,7 +16,11 @@ const generalLimiter = rateLimit({
 });
 
 export const applySecurityMiddleware = (app) => {
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: "cross-origin" }
+    })
+  );
   app.use(cors(corsOptions));
   app.use(generalLimiter);
   app.use(mongoSanitize());

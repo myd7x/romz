@@ -2,7 +2,7 @@ import * as categoriesService from "./categories.service.js";
 import { created, noContent, ok } from "../../utils/responseHandler.js";
 
 export const createCategory = async (req, res) => {
-  const category = await categoriesService.createCategory(req.body);
+  const category = await categoriesService.createCategory(req.body, req.file);
   return created(res, {
     message: "Category created",
     data: { category }
@@ -37,7 +37,7 @@ export const getCategoryById = async (req, res) => {
 };
 
 export const updateCategory = async (req, res) => {
-  const category = await categoriesService.updateCategory(req.params.id, req.body);
+  const category = await categoriesService.updateCategory(req.params.id, req.body, req.file);
   return ok(res, {
     message: "Category updated",
     data: { category }

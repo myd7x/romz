@@ -29,6 +29,7 @@ const settingsSchema = new mongoose.Schema(
     key: { type: String, default: "store", unique: true },
     storeName: { type: String, trim: true, default: "ROMZ" },
     promoBar: { type: localizedStringSchema, default: () => ({}) },
+    promoBarActive: { type: Boolean, default: true },
     heroSlides: { type: [heroSlideSchema], default: [] },
     featuredCollections: [{ type: mongoose.Schema.Types.ObjectId, ref: "Category" }],
     announcement: { type: localizedStringSchema, default: () => ({}) },

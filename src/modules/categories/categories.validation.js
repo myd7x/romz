@@ -6,15 +6,26 @@ const localizedStringSchema = Joi.object({
 }).required();
 
 const imageSchema = Joi.object({
-  url: Joi.string().trim().uri().allow("").default(""),
+  url: Joi.alternatives()
+    .try(
+      Joi.string().trim().uri(),
+      Joi.string().trim().pattern(/^\/uploads\/.+/),
+      Joi.string().valid("")
+    )
+    .default(""),
   publicId: Joi.string().trim().allow("").default("")
-}).default({ url: "", publicId: "" });
+}).allow(null);
+
+const parentSchema = Joi.alternatives()
+  .try(Joi.string().hex().length(24), Joi.string().valid(""), Joi.valid(null))
+  .optional();
 
 export const createCategorySchema = Joi.object({
   name: localizedStringSchema,
   slug: Joi.string().trim().lowercase().max(140).optional(),
-  image: imageSchema,
-  parent: Joi.string().hex().length(24).allow(null).optional(),
+  image: imageSchema.default({ url: "", publicId: "" }),
+  removeImage: Joi.boolean().optional(),
+  parent: parentSchema,
   isActive: Joi.boolean().default(true),
   order: Joi.number().integer().min(0).default(0)
 });
@@ -23,10 +34,11 @@ export const updateCategorySchema = Joi.object({
   name: localizedStringSchema.optional(),
   slug: Joi.string().trim().lowercase().max(140).optional(),
   image: imageSchema.optional(),
-  parent: Joi.string().hex().length(24).allow(null).optional(),
+  removeImage: Joi.boolean().optional(),
+  parent: parentSchema,
   isActive: Joi.boolean().optional(),
   order: Joi.number().integer().min(0).optional()
-}).min(1);
+});
 
 export const categoryIdParamsSchema = Joi.object({
   id: Joi.string().hex().length(24).required()

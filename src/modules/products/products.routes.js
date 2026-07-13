@@ -17,8 +17,11 @@ const router = Router();
 const parseProductBody = parseJsonFields([
   "name",
   "description",
+  "categories",
   "collections",
-  "images",
+  "existingImages",
+  "existingImageColors",
+  "imageColors",
   "variants",
   "badges"
 ]);

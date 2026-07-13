@@ -6,10 +6,17 @@ const localizedStringSchema = Joi.object({
 }).required();
 
 const imageSchema = Joi.object({
-  url: Joi.string().trim().uri().required(),
+  url: Joi.alternatives()
+    .try(
+      Joi.string().trim().uri(),
+      Joi.string().trim().pattern(/^\/uploads\/.+/)
+    )
+    .required(),
   publicId: Joi.string().trim().required(),
   color: Joi.string().trim().max(80).allow("").default("")
 });
+
+const imageColorsSchema = Joi.array().items(Joi.string().trim().max(80).allow("")).default([]);
 
 const colorSchema = Joi.object({
   name: Joi.string().trim().max(80).required(),
@@ -28,29 +35,33 @@ export const createProductSchema = Joi.object({
   name: localizedStringSchema,
   slug: Joi.string().trim().lowercase().max(220).optional(),
   description: localizedStringSchema,
-  category: Joi.string().hex().length(24).required(),
+  category: Joi.string().hex().length(24).optional(),
+  categories: Joi.array().items(Joi.string().hex().length(24)).min(1).optional(),
   collections: Joi.array().items(Joi.string().hex().length(24)).default([]),
   basePrice: Joi.number().min(0).required(),
   salePrice: Joi.number().min(0).allow(null).default(null),
-  images: Joi.array().items(imageSchema).default([]),
+  imageColors: imageColorsSchema,
   variants: Joi.array().items(variantSchema).min(1).required(),
   badges: Joi.array().items(Joi.string().valid("new", "best-seller", "sale")).default([]),
   isActive: Joi.boolean().default(true)
-});
+}).or("category", "categories");
 
 export const updateProductSchema = Joi.object({
   name: localizedStringSchema.optional(),
   slug: Joi.string().trim().lowercase().max(220).optional(),
   description: localizedStringSchema.optional(),
   category: Joi.string().hex().length(24).optional(),
+  categories: Joi.array().items(Joi.string().hex().length(24)).min(1).optional(),
   collections: Joi.array().items(Joi.string().hex().length(24)).optional(),
   basePrice: Joi.number().min(0).optional(),
   salePrice: Joi.number().min(0).allow(null).optional(),
-  images: Joi.array().items(imageSchema).optional(),
+  existingImages: Joi.array().items(imageSchema).optional(),
+  existingImageColors: Joi.array().items(Joi.string().trim().max(80).allow("")).optional(),
+  imageColors: Joi.array().items(Joi.string().trim().max(80).allow("")).optional(),
   variants: Joi.array().items(variantSchema).min(1).optional(),
   badges: Joi.array().items(Joi.string().valid("new", "best-seller", "sale")).optional(),
   isActive: Joi.boolean().optional()
-}).min(1);
+});
 
 export const productIdParamsSchema = Joi.object({
   id: Joi.string().hex().length(24).required()

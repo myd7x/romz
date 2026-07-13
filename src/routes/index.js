@@ -10,6 +10,7 @@ import orderRoutes from "../modules/orders/orders.routes.js";
 import paymentRoutes from "../modules/payments/payments.routes.js";
 import productRoutes from "../modules/products/products.routes.js";
 import reviewRoutes from "../modules/reviews/reviews.routes.js";
+import settingsRoutes from "../modules/settings/settings.routes.js";
 import shippingZoneRoutes from "../modules/shippingZones/shippingZones.routes.js";
 import userRoutes from "../modules/users/users.routes.js";
 
@@ -25,6 +26,7 @@ router.use("/coupons", couponRoutes);
 router.use("/cart", cartRoutes);
 router.use("/orders", orderRoutes);
 router.use("/shipping-zones", shippingZoneRoutes);
+router.use("/settings", settingsRoutes);
 router.use("/payments", paymentRoutes);
 router.use("/couriers", courierRoutes);
 router.use("/analytics", analyticsRoutes);
