@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import cloudinary from "../config/cloudinary.js";
+import cloudinary, { assertCloudinaryConfigured } from "../config/cloudinary.js";
 import { AppError } from "../utils/AppError.js";
 
 const uploadsRoot = path.resolve(process.cwd(), "uploads");
@@ -68,6 +68,7 @@ export const uploadImageBuffer = async (file, folder = "romz") => {
   const uploadFolder = normalizeCloudinaryFolder(folder);
 
   try {
+    assertCloudinaryConfigured();
     return await uploadToCloudinary(file, uploadFolder);
   } catch (error) {
     throw new AppError(`Image upload failed: ${error.message}`, 500);
@@ -89,6 +90,7 @@ export const deleteImage = async (publicId) => {
   if (!normalizedPublicId || /^https?:\/\//i.test(normalizedPublicId)) return;
 
   try {
+    assertCloudinaryConfigured();
     await cloudinary.uploader.destroy(normalizedPublicId, {
       resource_type: "image",
       invalidate: true

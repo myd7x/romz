@@ -2,8 +2,10 @@ import { jest } from "@jest/globals";
 
 const uploadStream = jest.fn();
 const destroy = jest.fn();
+const assertCloudinaryConfigured = jest.fn();
 
 jest.unstable_mockModule("../src/config/cloudinary.js", () => ({
+  assertCloudinaryConfigured,
   default: {
     uploader: {
       upload_stream: uploadStream,
@@ -19,6 +21,7 @@ const { deleteImage, uploadImageBuffer } = await import(
 beforeEach(() => {
   uploadStream.mockReset();
   destroy.mockReset();
+  assertCloudinaryConfigured.mockReset();
 });
 
 test("uploads image buffers to the requested Cloudinary folder", async () => {
@@ -48,6 +51,7 @@ test("uploads image buffers to the requested Cloudinary folder", async () => {
     url: "https://res.cloudinary.com/romz/image/upload/sample.jpg",
     publicId: options.public_id
   });
+  expect(assertCloudinaryConfigured).toHaveBeenCalledTimes(1);
 });
 
 test("deletes Cloudinary images by public ID and invalidates the CDN", async () => {
@@ -59,6 +63,7 @@ test("deletes Cloudinary images by public ID and invalidates the CDN", async () 
     resource_type: "image",
     invalidate: true
   });
+  expect(assertCloudinaryConfigured).toHaveBeenCalledTimes(1);
 });
 
 test("does not try to delete external URLs without a Cloudinary public ID", async () => {
