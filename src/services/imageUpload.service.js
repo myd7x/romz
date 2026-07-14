@@ -1,20 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import cloudinary from "../config/cloudinary.js";
 import { AppError } from "../utils/AppError.js";
 
 const uploadsRoot = path.resolve(process.cwd(), "uploads");
-
-const extensionByMime = {
-  "image/jpeg": ".jpg",
-  "image/png": ".png",
-  "image/webp": ".webp"
-};
-
-const resolveUploadFolder = (folder) => {
-  const folderName = path.basename(folder || "general");
-  return path.join(uploadsRoot, folderName);
-};
 
 const resolveLocalPublicId = (publicId) => {
   const normalizedPublicId = String(publicId || "").replace(/^\/+/, "");
@@ -27,37 +17,83 @@ const resolveLocalPublicId = (publicId) => {
   return target;
 };
 
+const normalizeCloudinaryFolder = (folder) => {
+  const normalized = String(folder || "romz")
+    .replace(/\\/g, "/")
+    .replace(/^\/+|\/+$/g, "");
+
+  if (!normalized || !/^[a-zA-Z0-9/_-]+$/.test(normalized)) {
+    throw new AppError("Invalid image upload folder", 500);
+  }
+
+  return normalized;
+};
+
+const uploadToCloudinary = (file, folder) =>
+  new Promise((resolve, reject) => {
+    const assetName = `${Date.now()}-${randomUUID()}`;
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: "image",
+        asset_folder: folder,
+        public_id: `${folder}/${assetName}`,
+        overwrite: false
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        if (!result?.secure_url || !result?.public_id) {
+          reject(new Error("Cloudinary returned an incomplete upload response"));
+          return;
+        }
+
+        resolve({
+          url: result.secure_url,
+          publicId: result.public_id
+        });
+      }
+    );
+
+    uploadStream.end(file.buffer);
+  });
+
 export const uploadImageBuffer = async (file, folder = "romz") => {
   if (!file?.buffer) {
     throw new AppError("Image buffer is required", 400);
   }
 
-  const uploadDir = resolveUploadFolder(folder);
-  const extension = extensionByMime[file.mimetype] || ".jpg";
-  const filename = `${Date.now()}-${randomUUID()}${extension}`;
-  const publicId = path.posix.join("uploads", path.basename(uploadDir), filename);
-  const filePath = path.join(uploadDir, filename);
+  const uploadFolder = normalizeCloudinaryFolder(folder);
 
   try {
-    await fs.mkdir(uploadDir, { recursive: true });
-    await fs.writeFile(filePath, file.buffer);
+    return await uploadToCloudinary(file, uploadFolder);
   } catch (error) {
     throw new AppError(`Image upload failed: ${error.message}`, 500);
   }
-
-  return {
-    url: `/${publicId}`,
-    publicId
-  };
 };
 
 export const deleteImage = async (publicId) => {
   if (!publicId) return;
 
   const filePath = resolveLocalPublicId(publicId);
-  if (!filePath) return;
+  if (filePath) {
+    await fs.unlink(filePath).catch((error) => {
+      if (error.code !== "ENOENT") throw error;
+    });
+    return;
+  }
 
-  await fs.unlink(filePath).catch((error) => {
-    if (error.code !== "ENOENT") throw error;
-  });
+  const normalizedPublicId = String(publicId).trim().replace(/^\/+|\/+$/g, "");
+  if (!normalizedPublicId || /^https?:\/\//i.test(normalizedPublicId)) return;
+
+  try {
+    await cloudinary.uploader.destroy(normalizedPublicId, {
+      resource_type: "image",
+      invalidate: true
+    });
+  } catch (error) {
+    throw new AppError(`Image deletion failed: ${error.message}`, 500);
+  }
 };

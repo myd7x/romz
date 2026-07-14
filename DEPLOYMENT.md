@@ -98,7 +98,7 @@ GET http://localhost:5000/api/v1/health/ready
 
 ## External Services
 
-- Product image uploads are stored on the server filesystem under `uploads/products`; make sure the deployment persists that directory or mounts durable storage.
+- Product and category images are stored in Cloudinary. Configure `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` in every deployment environment that accepts admin uploads.
 - Configure SMTP before customer-facing emails.
 - Configure Paymob credentials before live online payments.
 - Configure Redis only when caching is needed in production.
