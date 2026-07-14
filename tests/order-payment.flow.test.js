@@ -162,6 +162,30 @@ afterAll(async () => {
   await mongoose.disconnect();
 });
 
+test("cart validation falls back to SKU when a persisted variant ID is stale", async () => {
+  const fixture = await createCatalogFixture("STALE", 5);
+  const staleVariantId = new mongoose.Types.ObjectId().toString();
+
+  const cart = await request(app)
+    .post("/api/v1/cart/validate")
+    .send({
+      items: [
+        {
+          product: fixture.productId,
+          variantId: staleVariantId,
+          sku: fixture.sku,
+          qty: 1
+        }
+      ]
+    });
+
+  expect(cart.status).toBe(200);
+  expect(cart.body.data.cart.isValid).toBe(true);
+  expect(cart.body.data.cart.unavailableItems).toHaveLength(0);
+  expect(cart.body.data.cart.items[0].variantId).toBe(String(fixture.variantId));
+  expect(cart.body.data.cart.items[0].sku).toBe(fixture.sku);
+});
+
 test("COD checkout decrements stock and cancel restores stock and coupon usage", async () => {
   const fixture = await createCatalogFixture("COD", 5);
   const coupon = await createCoupon(`COD${state.stamp}`);

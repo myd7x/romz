@@ -2,6 +2,12 @@
 
 This document describes every mounted API in the ROMZ backend for frontend integration.
 
+Last synchronized with the backend source: `2026-07-14`.
+
+The backend is the source of truth for prices, discounts, shipping fees, stock, payment status,
+and order status. The frontend should display values returned by `/cart/validate` and `/orders`
+instead of calculating a final payable total independently.
+
 ## Base URL
 
 Default local base URL:
@@ -26,7 +32,7 @@ For protected endpoints:
 Authorization: Bearer <accessToken>
 ```
 
-For refresh-token requests, send browser credentials/cookies:
+For refresh-token requests, prefer browser credentials/cookies:
 
 ```js
 fetch(`${API_URL}/auth/refresh`, {
@@ -46,27 +52,38 @@ fetch(`${API_URL}/auth/login`, {
 });
 ```
 
+If your frontend cannot rely on cookies, store `data.refreshToken` from login/register/refresh and send it to `/auth/refresh` in the JSON body:
+
+```js
+fetch(`${API_URL}/auth/refresh`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ refreshToken })
+});
+```
+
 Product photos are uploaded with Multer using `multipart/form-data`. Send product photo files in the `images` field, up to 8 files per request. Category photos are uploaded with a single `image` file field. When using multipart, send structured fields such as `name`, `description`, `categories`, `collections`, `variants`, `badges`, `existingImages`, and `imageColors` as JSON strings.
 
 CORS is open. The API reflects the request origin and allows credentials, so browser clients on localhost, tunnels, or deployed domains can call the API without adding their origin to `CLIENT_ORIGINS`.
 
 ## Response Envelope
 
-All JSON success responses use:
+JSON success responses use:
 
 ```json
 {
   "success": true,
   "message": "OK",
-  "data": {},
-  "meta": {}
+  "data": {}
 }
 ```
 
-`meta` appears on paginated endpoints. Delete/logout endpoints may return `204 No Content` with no body.
+`data` is `null` when a successful endpoint has no response data. `meta` is present only when the
+controller supplies it, currently on paginated endpoints. Delete/logout endpoints may return
+`204 No Content` with no body.
 
 All JSON errors use:
-هةش
+
 ```json
 {
   "success": false,
@@ -90,10 +107,25 @@ Common error statuses:
 | `429` | Rate limit exceeded |
 | `500` | Server/configuration error |
 
+Frontend JSON paths use the API envelope's `data` field:
+
+| API area | JSON path |
+| --- | --- |
+| Auth | `data.user`, `data.accessToken`, `data.refreshToken` |
+| Product list/detail | `data.products`, `data.product` |
+| Settings | `data.settings` |
+| Cart validation | `data.cart` |
+| Order create/detail/track | `data.order` |
+| Paymob intent | `data.payment` |
+
+With Axios, its own HTTP response wrapper adds another level; for example, the cart is commonly read as
+`axiosResponse.data.data.cart`. With `fetch`, after `await response.json()`, it is `json.data.cart`.
+
 Rate-limited endpoints:
 
 | Area | Limit |
 | --- | --- |
+| All API routes | 300 requests per 15 minutes per IP |
 | Register/login | 20 requests per 15 minutes |
 | Verify/resend OTP | 8 requests per 15 minutes |
 | Forgot/reset password | 5 requests per 60 minutes |
@@ -350,7 +382,22 @@ Response `503` when MongoDB is disconnected:
 
 ## Auth APIs
 
-Refresh tokens are set as HTTP-only cookies named by `JWT_REFRESH_COOKIE_NAME`, default `romz_refresh`. They are intentionally not returned in JSON. Access tokens are returned in JSON and should be sent in `Authorization: Bearer <accessToken>`.
+Refresh tokens are set as HTTP-only cookies named by `JWT_REFRESH_COOKIE_NAME`, default `romz_refresh`, and are also returned in JSON as `refreshToken` for clients that cannot use cookies reliably. Access tokens are returned in JSON and should be sent in `Authorization: Bearer <accessToken>`.
+
+`POST /auth/refresh` and `POST /auth/logout` read the refresh token in this exact priority order:
+
+1. Cookie named by `JWT_REFRESH_COOKIE_NAME` (default `romz_refresh`).
+2. JSON body field `refreshToken`.
+3. JSON body field `refresh_token`.
+4. Header `x-refresh-token`.
+
+Do not send several different refresh tokens at once. A stale cookie has priority over a valid body
+or header token and will cause `401`. After a successful refresh, replace the stored access token and,
+when using JSON token storage, replace the stored refresh token with the token from the response.
+
+Refreshing does not revoke the previously issued refresh token. Logging out with a valid refresh token
+or resetting the password increments the user's token version and invalidates all older refresh tokens
+for that account.
 
 Cookie defaults are environment-aware:
 
@@ -363,12 +410,12 @@ You can override with `JWT_REFRESH_COOKIE_SECURE`, `JWT_REFRESH_COOKIE_SAME_SITE
 
 | Method | Path | Auth | Request | Success Response |
 | --- | --- | --- | --- | --- |
-| `POST` | `/auth/register` | Public | `{ name, email, password, phone? }` | `201`, `data: { user, accessToken }`, sets refresh cookie |
-| `POST` | `/auth/login` | Public | `{ email, password }` | `200`, `data: { user, accessToken }`, sets refresh cookie |
+| `POST` | `/auth/register` | Public | `{ name, email, password, phone? }` | `201`, `data: { user, accessToken, refreshToken }`, sets refresh cookie |
+| `POST` | `/auth/login` | Public | `{ email, password }` | `200`, `data: { user, accessToken, refreshToken }`, sets refresh cookie |
 | `POST` | `/auth/verify-email` | Public | `{ email, code }` where `code` is 6 digits | `200`, `data: { user }` |
 | `POST` | `/auth/resend-otp` | Public | `{ email }` | `200`, `data: null` |
-| `POST` | `/auth/refresh` | Refresh cookie | no body | `200`, `data: { user, accessToken }`, rotates refresh cookie |
-| `POST` | `/auth/logout` | Refresh cookie optional | no body | `204 No Content`, clears refresh cookie |
+| `POST` | `/auth/refresh` | Refresh cookie/body/header | optional `{ refreshToken }` | `200`, `data: { user, accessToken, refreshToken }`, reissues refresh cookie |
+| `POST` | `/auth/logout` | Refresh cookie/body/header optional | optional `{ refreshToken }` | `204 No Content`, clears refresh cookie |
 | `POST` | `/auth/forgot-password` | Public | `{ email }` | `200`, `data: null` |
 | `POST` | `/auth/reset-password` | Public | `{ token, password }` | `200`, `data: null` |
 
@@ -400,7 +447,8 @@ Register/login response:
       "addresses": [],
       "wishlist": []
     },
-    "accessToken": "<jwt>"
+    "accessToken": "<jwt>",
+    "refreshToken": "<jwt>"
   }
 }
 ```
@@ -411,7 +459,7 @@ Validation rules:
 | --- | --- |
 | `name` | required for register, 2-80 chars |
 | `email` | required, valid email, normalized lowercase |
-| `password` | required, 8-128 chars |
+| `password` | register/reset: required, 8-128 chars; login: any non-empty string is accepted for comparison |
 | `phone` | optional, max 30 chars |
 | `code` | required for verify email, exactly 6 digits |
 | `token` | required for password reset |
@@ -470,7 +518,9 @@ Wishlist items are populated product summaries:
 
 ## Category APIs
 
-Public reads return active categories. Admin writes require Bearer admin token.
+`GET /categories` and `GET /categories/tree` return only active categories. The public
+`GET /categories/:id` detail route loads by ID and can return an inactive category. Admin writes
+require a Bearer admin token.
 
 | Method | Path | Auth | Request | Success Response |
 | --- | --- | --- | --- | --- |
@@ -525,6 +575,8 @@ Category photo workflow:
 4. To remove a category image without uploading a new one, send `removeImage: true`; the previous local image file is deleted.
 5. Deleting a category also removes its local image file from the server filesystem.
 6. Multipart requests may send empty `parent` as `""`; the backend normalizes it to `null`.
+7. A JSON `image: { url, publicId }` is accepted during category creation. During update, replacement
+   is file-based: an `image` object without a file is ignored unless `removeImage: true` is also sent.
 
 Category response:
 
@@ -573,8 +625,10 @@ Store settings are used by the storefront and admin dashboard for homepage/custo
 | --- | --- | --- | --- | --- |
 | `GET` | `/settings/store` | Public | no body | `200`, `data: { settings }` |
 | `PATCH` | `/settings/store` | Admin | settings body | `200`, `data: { settings }` |
+| `GET` | `/storefront-settings` | Public | no body | `200`, `data: { settings }` |
+| `PATCH` | `/admin/storefront-settings` | Admin | partial settings body | `200`, `data: { settings }` |
 
-`GET /settings/store` creates the default `{ key: "store" }` settings document if it does not exist.
+`GET /settings/store` and `GET /storefront-settings` create the default `{ key: "store" }` settings document if it does not exist.
 
 Patch store settings request:
 
@@ -608,12 +662,35 @@ Patch store settings request:
     "tiktok": "",
     "whatsapp": ""
   },
+  "payments": {
+    "paymob": {
+      "active": true
+    }
+  },
   "freeShippingThreshold": 1500,
   "lowStockThreshold": 5
 }
 ```
 
-Promo bar active state can be sent as either `promoBar.active` or top-level `promoBarActive`.
+Promo bar active state can be sent as either `promoBar.active` or top-level `promoBarActive`. The
+normalized settings response always exposes this value as top-level `settings.promoBarActive`; it does
+not return `settings.promoBar.active`.
+
+Checkout payment methods:
+
+```json
+{
+  "payments": {
+    "paymob": {
+      "active": false
+    }
+  }
+}
+```
+
+The storefront should read `settings.payments.paymob.active`. When `false`, hide Paymob/card payment
+during checkout. This is currently a storefront availability setting only: the order and payment
+endpoints do not reject Paymob requests based on this flag, so the frontend must enforce the visibility.
 
 Settings validation rules:
 
@@ -626,6 +703,7 @@ Settings validation rules:
 | `heroSlides[]` | optional array of slide objects |
 | `featuredCollections[]` | optional Category ObjectIds; all must exist |
 | `socialLinks` | optional facebook, instagram, tiktok, whatsapp strings |
+| `payments.paymob.active` | optional boolean |
 | `freeShippingThreshold` | optional number >= 0 or `null` |
 | `lowStockThreshold` | optional integer >= 0 |
 
@@ -654,9 +732,13 @@ Product list query params:
 | `color` | CSV string | Matches `variants.color.name` |
 | `badge` | CSV string | Values: `new`, `best-seller`, `sale` |
 | `search` | string | Text search over Arabic/English name and description |
-| `minPrice` | number | Uses sale price when present, otherwise base price |
-| `maxPrice` | number | Uses sale price when present, otherwise base price |
-| `sort` | string | `newest`, `price-low`, `price-high`, `best-selling`, `rating`, or comma-separated mongoose fields |
+| `minPrice` | number | Filters by `salePrice ?? basePrice`; variant `priceOverride` is not used by product-list filtering |
+| `maxPrice` | number | Filters by `salePrice ?? basePrice`; variant `priceOverride` is not used by product-list filtering |
+| `sort` | string | `newest`, `price-low`, `price-high`, `best-selling`, `rating`, or comma-separated Mongoose fields. `price-low` and `price-high` sort by `basePrice`, not effective price. |
+
+`GET /products/home` returns up to 8 items per group. `newArrivals` sorts by newest,
+`bestSellers` sorts by `sold`, and `saleProducts` includes products with the `sale` badge. A non-null
+`salePrice` alone does not place a product in `saleProducts`.
 
 Product create JSON request:
 
@@ -714,6 +796,10 @@ Product multipart request fields:
 | `existingImageColors` | JSON string | Optional update-only array matched to `existingImages` order, example `["Black","White"]` |
 | `existingImages` | JSON string | Update only. Array of current image objects to keep before appending newly uploaded files |
 | `basePrice`, `salePrice`, `category`, `slug`, `isActive` | form fields | Normal scalar fields. `category` is optional when `categories` is sent. |
+
+For multipart requests, omit `salePrice` entirely when creating a product with no sale. Empty string
+and the string `"null"` are not valid numbers. To remove an existing sale, send a JSON PATCH with
+`"salePrice": null`; multipart scalar parsing does not convert `"null"` to JavaScript `null`.
 
 Product photo workflow:
 
@@ -823,11 +909,45 @@ Product validation rules:
 | `variants[].size` | required, max 20 chars |
 | `variants[].color.name` | required, max 80 chars |
 | `variants[].stock` | integer >= 0, default `0` |
+| `variants[].priceOverride` | number >= 0 or `null`, default `null` |
 | `badges[]` | `new`, `best-seller`, `sale` |
 | `images` multipart files | optional product photos, max 8 files, max 15MB each, image MIME only |
 | `imageColors[]` | optional uploaded-photo colors, matched by file order |
 | `existingImageColors[]` | optional update-only existing-photo colors, matched by `existingImages` order |
 | `existingImages[]` | update only, current image objects to keep |
+
+### Product Price Contract
+
+The backend calculates the effective unit price for a selected variant in this exact priority order:
+
+```js
+effectiveUnitPrice = variant.priceOverride ?? product.salePrice ?? product.basePrice;
+```
+
+| Field | Meaning | When it becomes the charged price |
+| --- | --- | --- |
+| `basePrice` | Required regular/list price | Only when both `priceOverride` and `salePrice` are `null` or missing |
+| `salePrice` | Optional product-wide selling price | When it is not `null`/missing and the variant has no override |
+| `variants[].priceOverride` | Optional price for one specific variant | Whenever it is not `null`/missing; this has highest priority |
+
+The operator is nullish coalescing, so `0` is a real price and does not fall back. To represent no sale,
+send `salePrice: null` or omit `salePrice` during creation. On update, omitting `salePrice` preserves its
+current value; send `salePrice: null` to remove a current sale. Sending `salePrice` equal to `basePrice`
+produces the same charged price but still leaves a non-null sale price in the product data.
+
+The backend does not currently require `salePrice < basePrice`, and it does not require
+`priceOverride < basePrice`. The frontend may choose how to label a sale, but it must use the cart's
+returned `unitPrice` for the amount shown at checkout.
+
+For each cart line:
+
+```text
+lineTotal = roundTo2(effectiveUnitPrice * qty)
+subtotal  = roundTo2(sum(lineTotal))
+```
+
+The selected variant must exist by `variantId` or `sku`; a product cannot be ordered without a valid
+variant even when its base or sale price is present.
 
 ## Review APIs
 
@@ -895,7 +1015,7 @@ Validation rules:
 | `GET` | `/coupons/:id` | Admin | no body | `200`, `data: { coupon }` |
 | `POST` | `/coupons` | Admin | coupon body | `201`, `data: { coupon }` |
 | `PATCH` | `/coupons/:id` | Admin | partial coupon body | `200`, `data: { coupon }` |
-| `DELETE` | `/coupons/:id` | Admin | no body | `204 No Content`, soft deletes by `isActive=false` |
+| `DELETE` | `/coupons/:id` | Admin | no body | `204 No Content`, permanently deletes the coupon |
 
 Create coupon request:
 
@@ -911,6 +1031,27 @@ Create coupon request:
   "isActive": true
 }
 ```
+
+Coupon write rules:
+
+| Field | Rules |
+| --- | --- |
+| `code` | required on create, trimmed/uppercased, max 40 chars |
+| `type` | required on create: `percent` or `fixed` |
+| `value` | required on create, number >= 0; percent values are not capped at 100 by validation |
+| `minOrderTotal` | number >= 0, default `0` |
+| `maxDiscount` | number >= 0 or `null`, default `null` |
+| `expiresAt` | ISO date or `null`, default `null` |
+| `usageLimit` | integer >= 0 or `null`, default `null`; `0` makes the coupon immediately unavailable |
+| `isActive` | boolean, default `true` |
+
+`usedCount` and `usedBy` are maintained by order/payment workflows and are not accepted by coupon
+create/update validation.
+
+Pausing and deleting are separate operations. Use `PATCH /coupons/:id` with `isActive: false` to pause
+a coupon while keeping it available to the admin API, and patch it back to `true` to resume it. Use
+`DELETE /coupons/:id` for permanent deletion; afterward the coupon is absent from list/detail and
+validation APIs, and its code can be created again.
 
 Validate coupon request:
 
@@ -951,6 +1092,41 @@ Coupon validation checks:
 | Usage limit reached | `400 Coupon usage limit reached` |
 | Subtotal below minimum | `400 Minimum order total for this coupon is <amount>` |
 | Authenticated user already used it | `400 Coupon was already used by this account` |
+
+Coupon calculations use the supplied/backend-calculated subtotal before shipping:
+
+```text
+percent raw discount = subtotal * (value / 100)
+fixed raw discount   = value
+discountAmount       = roundTo2(min(raw discount, maxDiscount when set, subtotal))
+totalAfterDiscount   = subtotal - discountAmount
+```
+
+`minOrderTotal` is compared with the subtotal after variant overrides and product sale prices have
+been applied, but before the coupon discount and before shipping. For example, items with a combined
+base price of `3500` but an effective sale-price subtotal of `900` fail a coupon whose
+`minOrderTotal` is `1000`.
+
+`POST /coupons/validate` uses the `subtotal` sent by the caller and is therefore only a preview helper.
+It does not load products or recalculate cart prices. For checkout, use the subtotal and discount from
+`POST /cart/validate`; `POST /orders` recalculates everything again and remains authoritative.
+
+When the minimum is not met, the error includes machine-readable values:
+
+```json
+{
+  "success": false,
+  "message": "Minimum order total for this coupon is 1000",
+  "data": {
+    "couponCode": "SUMMER20",
+    "subtotal": 900,
+    "minOrderTotal": 1000
+  }
+}
+```
+
+Per-account reuse is checked only when an access token resolves to a user. The global `usageLimit`,
+active state, and expiration checks apply to both guests and authenticated users.
 
 ## Cart APIs
 
@@ -1036,6 +1212,24 @@ Unavailable item shape:
 }
 ```
 
+Cart pricing behavior:
+
+1. The request sends only product identity, variant identity, and quantity. Client-supplied prices are
+   not accepted.
+2. If both `variantId` and `sku` are sent, the backend tries `variantId` first and falls back to `sku`
+   when that ID is stale or no longer exists.
+3. `unitPrice` follows `priceOverride ?? salePrice ?? basePrice`; `lineTotal` and `subtotal` are rounded
+   to two decimal places.
+4. A low-stock line is still present in `items` and the subtotal, but also appears in
+   `unavailableItems`, making `isValid: false`. A missing/inactive product or missing variant appears
+   only in `unavailableItems`.
+5. A coupon error returns an HTTP error response; it does not return a successful cart with zero
+   discount.
+6. `cart.total` equals `subtotal - discount.amount`. It does not include shipping.
+
+The frontend should replace its displayed checkout line prices, subtotal, discount, and cart total
+with this response. Do not continue to order creation while `cart.isValid` is `false`.
+
 ## Order APIs
 
 Checkout supports guest and authenticated users. If the frontend has an access token, send it so the order is linked to the user and coupon usage can be tracked per account.
@@ -1078,12 +1272,52 @@ Create order request:
 }
 ```
 
+Order create validation:
+
+| Field | Rules |
+| --- | --- |
+| `customer.name` | required, 2-100 chars |
+| `customer.email` | valid email or empty string, default `""` |
+| `customer.phone` | required, 5-30 chars |
+| `shippingAddress.governorate`, `city` | required, max 80 chars |
+| `shippingAddress.street` | required, max 220 chars |
+| `shippingAddress.apartment` | optional, max 80 chars, default `""` |
+| `shippingAddress.postal` | optional, max 40 chars, default `""` |
+| `items` | required non-empty array; each item needs a product ObjectId, `variantId` or `sku`, and `qty` from 1-99 |
+| `couponCode` | optional, trimmed/uppercased, max 40 chars |
+| `paymentMethod` | required: `cod` or `paymob` |
+
+Client-calculated subtotal, discount, shipping fee, total, product name, and unit price are not
+accepted in this request.
+
 Create order behavior:
 
 | Payment Method | Behavior |
 | --- | --- |
 | `cod` | Stock is decremented immediately. Coupon usage is incremented immediately. `paymentStatus` stays `pending`. |
 | `paymob` | Stock and coupon usage are updated after successful Paymob webhook. Use `/payments/paymob/intent` after creating the order. |
+
+Order total calculation is:
+
+```text
+effective unit price = variant.priceOverride ?? product.salePrice ?? product.basePrice
+subtotal             = sum(roundTo2(effective unit price * qty))
+discount             = coupon calculated from subtotal
+cart total           = subtotal - discount
+shipping fee         = 0 when freeShippingThreshold is set and cart total >= threshold;
+                       otherwise the active governorate zone fee
+order total          = roundTo2(cart total + shipping fee)
+```
+
+Free-shipping eligibility is therefore checked after the coupon discount, not against the original
+subtotal. `freeShippingThreshold: null` means there is no free-shipping threshold and the zone fee is
+charged. The shipping zone must be active and its governorate must match the submitted governorate
+case-insensitively.
+
+`POST /orders` repeats product, variant, stock, price, coupon, and shipping validation. Values shown by
+an earlier cart validation can change before order creation, so the returned order is the final source
+of truth. The order stores each effective `unitPrice` as a snapshot; later product price edits do not
+change an existing order.
 
 Create order response:
 
@@ -1130,6 +1364,9 @@ Cancel order request:
 
 Guests must provide matching `contact`. Authenticated owners and admins can cancel without contact. Only `pending` and `confirmed` orders can be cancelled.
 
+Cancellation restores stock for COD orders and paid Paymob orders. COD cancellation also decrements
+coupon usage. The current backend does not decrement coupon usage when a paid Paymob order is cancelled.
+
 Admin order list query params:
 
 | Query | Type | Notes |
@@ -1150,6 +1387,9 @@ Admin status update request:
   "note": "Handed to courier"
 }
 ```
+
+The admin status endpoint accepts any listed status regardless of the current status. It records a
+history entry and sends a status email, but it does not change stock, coupon usage, or payment status.
 
 Admin courier update request:
 
@@ -1214,7 +1454,7 @@ Orders can only be created for active zones matching `shippingAddress.governorat
 
 Creates a Paymob checkout intent for an existing `paymob` order.
 
-Auth: optional user. Send Bearer token if the order belongs to a logged-in user. Guests must send a matching `contact`.
+Auth: optional user. Send Bearer token if the order belongs to a logged-in user. Guests should send a matching `contact` when available. For immediate guest checkout, the backend also allows payment intent creation by `orderId` when the order has no linked user, uses `paymentMethod: "paymob"`, has `paymentStatus: "pending"`, and status is `pending` or `confirmed`.
 
 Request:
 
@@ -1226,6 +1466,9 @@ Request:
   "notificationUrl": "https://api.example.com/api/v1/payments/paymob/webhook"
 }
 ```
+
+`redirectionUrl` and `notificationUrl` are sent to Paymob only for the unified checkout flow. The
+legacy iframe flow ignores both fields and uses the callback URLs configured in the Paymob dashboard.
 
 Unified checkout response:
 
@@ -1242,7 +1485,8 @@ Unified checkout response:
       "paymobOrderId": "123456",
       "clientSecret": "paymob_client_secret",
       "publicKey": "paymob_public_key",
-      "checkoutUrl": "https://accept.paymob.com/unifiedcheckout/?publicKey=...&clientSecret=..."
+      "checkoutUrl": "https://accept.paymob.com/unifiedcheckout/?publicKey=...&clientSecret=...",
+      "redirectUrl": "https://accept.paymob.com/unifiedcheckout/?publicKey=...&clientSecret=..."
     }
   }
 }
@@ -1262,7 +1506,8 @@ Legacy iframe response:
       "orderNumber": "RZ-2026-00001",
       "paymobOrderId": "123456",
       "paymentKey": "paymob_payment_key",
-      "iframeUrl": "https://accept.paymob.com/api/acceptance/iframes/<iframeId>?payment_token=<paymentKey>"
+      "iframeUrl": "https://accept.paymob.com/api/acceptance/iframes/<iframeId>?payment_token=<paymentKey>",
+      "redirectUrl": "https://accept.paymob.com/api/acceptance/iframes/<iframeId>?payment_token=<paymentKey>"
     }
   }
 }
@@ -1270,10 +1515,20 @@ Legacy iframe response:
 
 Frontend flow:
 
-1. Create order with `paymentMethod: "paymob"`.
-2. Call `/payments/paymob/intent` with the returned `order._id`.
-3. Redirect/open `payment.checkoutUrl` for unified checkout, or `payment.iframeUrl` for legacy iframe.
-4. Use `/orders/track` or an authenticated/admin order endpoint to refresh order status after payment.
+1. Read `/storefront-settings` and show Paymob only when `settings.payments.paymob.active` is `true`.
+2. Validate the cart, then create one order with `paymentMethod: "paymob"`. The new order is still
+   `status: "pending"` and `paymentStatus: "pending"`.
+3. Call `/payments/paymob/intent` once with the returned `order._id` and the matching guest contact when
+   applicable.
+4. Redirect the top-level browser window with `window.location.assign(payment.redirectUrl)`. Do not
+   treat creation of the intent or a browser return as successful payment.
+5. After return, call `/orders/track` with `orderNumber` and customer phone/email. Payment is confirmed
+   only when the Paymob webhook has changed the order to `paymentStatus: "paid"` and
+   `status: "confirmed"`.
+
+Do not create another order when retrying the redirect for a still-pending order; request another
+intent for the existing order. If Paymob sends a final failed transaction, the webhook changes the
+order to `paymentStatus: "failed"` and `status: "cancelled"`.
 
 Backend checkout mode is controlled by `PAYMOB_CHECKOUT_FLOW`:
 
@@ -1425,21 +1680,58 @@ Useful optional fields:
 {
   "warehouseName": "Maadi",
   "pickupDueDate": "2026-07-13T10:00:00.000Z",
+  "packageSerial": 1,
   "reference": "RZ-2026-00001",
   "description": "ROMZ fashion order",
   "totalWeight": 1,
   "serviceType": "DTD",
   "service": "ND",
+  "serviceDate": null,
   "serviceCategory": "DELIVERY",
   "addressCategory": "H",
   "buildingNo": "5",
   "floorNo": "2",
   "apartmentNo": "4",
+  "geolocation": "29.9602,31.2569",
   "productCategory": "Fashion",
   "dimensions": "20*30*40",
-  "specialNotes": "Call before delivery"
+  "specialNotes": "Call before delivery",
+  "pieces": [
+    {
+      "pieceNo": 1,
+      "weight": 1,
+      "itemCategory": "Fashion",
+      "dimensions": "20*30*40",
+      "specialNotes": ""
+    }
+  ]
 }
 ```
+
+All shipment body fields are optional at backend validation level. Missing warehouse/service/weight
+values fall back to the corresponding `MYLERZ_*` environment values, pickup date defaults to tomorrow,
+city falls back to the order city, and neighborhood falls back to the order governorate. Mylerz can
+still reject the request when those fallback values do not match the merchant account's lookup data.
+
+Expected charges request (`POST /couriers/mylerz/expected-charges`):
+
+```json
+{
+  "codValue": 800,
+  "warehouseName": "Maadi",
+  "customerZoneCode": "CAI-MAADI",
+  "packageWeight": 1,
+  "isFulfillment": false,
+  "packageServiceTypeCode": "DTD",
+  "packageServiceCode": "ND",
+  "paymentTypeCode": "COD",
+  "serviceCategoryCode": "DELIVERY"
+}
+```
+
+Every field in this expected-charges example is required except `isFulfillment`, which defaults to
+`false`. Warehouse, zone, and service codes should come from the Mylerz lookup responses rather than
+frontend labels.
 
 Behavior:
 
@@ -1480,7 +1772,12 @@ Common query params:
 | `granularity` | string | `day` | `day`, `week`, `month`; used by revenue series |
 | `limit` | number | `10` | 1-100; used by best sellers and low stock |
 
-Revenue analytics count paid Paymob orders and delivered COD orders.
+Analytics responses are cached for 5 minutes when Redis is configured. Revenue overview, revenue
+series, items sold, average order value, and best sellers count paid Paymob orders and delivered COD
+orders. Orders-by-status counts all orders in the date range. Coupon analytics counts all orders with a
+coupon in the date range regardless of status. Payment split also counts and sums all orders regardless
+of payment/order status; `codFailureReturnRate` is the percentage of COD orders that are cancelled or
+returned.
 
 | Method | Path | Response |
 | --- | --- | --- |
@@ -1668,11 +1965,22 @@ Payment split response:
 
 ## Frontend Integration Checklist
 
-1. Store `accessToken` in frontend state after register/login/refresh.
-2. Enable `credentials: "include"` for register, login, refresh, logout, and any refresh-cookie flow if the frontend and API are on different origins.
-3. Add `Authorization: Bearer <accessToken>` for protected user/admin calls.
-4. Call `/cart/validate` before checkout to show stock, price, and coupon issues.
-5. Create the order with `/orders`; for Paymob orders, call `/payments/paymob/intent` next.
-6. Use `/shipping-zones` to limit available governorates before checkout.
-7. Use `/orders/track` for guest order status pages.
-8. Handle `204 No Content` responses without trying to parse JSON.
+1. Store `accessToken` after register/login/refresh. Use either the HTTP-only refresh cookie or the
+   returned `refreshToken`; avoid sending conflicting values because the cookie has priority.
+2. Enable `credentials: "include"` on register, login, refresh, and logout when using the cookie flow.
+3. Add `Authorization: Bearer <accessToken>` for protected user/admin calls. Optional-auth endpoints
+   behave as guest calls when the header is absent, but an invalid/expired Bearer token still returns
+   `401`.
+4. For product display, use the selected variant override first, then sale price, then base price. At
+   checkout, replace frontend calculations with `/cart/validate` response values.
+5. Treat no sale as `salePrice: null`/omitted. Do not send an empty string, and do not use `0` unless the
+   product is intentionally free.
+6. Pass the backend-priced subtotal to coupon preview UI. Remember that coupon minimums are checked
+   after sale/variant pricing and before coupon discount/shipping.
+7. Use `/shipping-zones` to limit governorates. Display the final shipping fee from the created order;
+   free-shipping eligibility uses the post-coupon cart total.
+8. Create the order once. For Paymob, call `/payments/paymob/intent`, redirect to `payment.redirectUrl`,
+   and wait for webhook-updated order status before showing success.
+9. Use `/orders/track` with exact order number and matching customer phone/email for guest status and
+   payment-return pages.
+10. Handle `204 No Content` without trying to parse JSON.

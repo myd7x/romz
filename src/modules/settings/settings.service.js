@@ -6,12 +6,32 @@ const storeSettingsQuery = { key: "store" };
 
 const settingsPopulate = [{ path: "featuredCollections", select: "name slug image parent order" }];
 
-export const getStoreSettings = async () =>
-  Settings.findOneAndUpdate(
+const ensureSettingsDefaults = async (settings) => {
+  if (settings.payments?.paymob?.active === undefined) {
+    settings.payments = {
+      ...(settings.payments?.toObject ? settings.payments.toObject() : settings.payments),
+      paymob: {
+        ...(settings.payments?.paymob?.toObject
+          ? settings.payments.paymob.toObject()
+          : settings.payments?.paymob),
+        active: true
+      }
+    };
+    await settings.save();
+  }
+
+  return settings;
+};
+
+export const getStoreSettings = async () => {
+  const settings = await Settings.findOneAndUpdate(
     storeSettingsQuery,
     { $setOnInsert: { key: "store" } },
     { new: true, upsert: true, setDefaultsOnInsert: true }
   ).populate(settingsPopulate);
+
+  return ensureSettingsDefaults(settings);
+};
 
 const assertFeaturedCollectionsExist = async (ids = []) => {
   if (!ids.length) return;
@@ -61,6 +81,19 @@ export const updateStoreSettings = async (payload) => {
       ...payload.socialLinks
     };
     delete payload.socialLinks;
+  }
+
+  if (payload.payments) {
+    settings.payments = {
+      ...(settings.payments?.toObject ? settings.payments.toObject() : settings.payments),
+      paymob: {
+        ...(settings.payments?.paymob?.toObject
+          ? settings.payments.paymob.toObject()
+          : settings.payments?.paymob),
+        ...payload.payments.paymob
+      }
+    };
+    delete payload.payments;
   }
 
   settings.set(payload);

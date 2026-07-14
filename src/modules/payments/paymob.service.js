@@ -142,12 +142,22 @@ const canAccessOrder = (order, user, contact = "") => {
   if (user && order.user && String(order.user) === String(user._id)) return true;
 
   const normalizedContact = String(contact).trim().toLowerCase();
-  return (
+  const contactMatches =
     normalizedContact &&
     [order.customer.phone, order.customer.email]
       .filter(Boolean)
       .map((value) => String(value).trim().toLowerCase())
-      .includes(normalizedContact)
+      .includes(normalizedContact);
+
+  if (contactMatches) return true;
+
+  return (
+    !user &&
+    !order.user &&
+    !normalizedContact &&
+    order.paymentMethod === "paymob" &&
+    order.paymentStatus === "pending" &&
+    ["pending", "confirmed"].includes(order.status)
   );
 };
 
@@ -299,6 +309,8 @@ export const createPaymentIntent = async (
       await order.save();
     }
 
+    const checkoutUrl = clientSecret ? buildUnifiedCheckoutUrl(clientSecret) : "";
+
     return {
       provider: "paymob",
       flow: "unified_checkout",
@@ -307,7 +319,8 @@ export const createPaymentIntent = async (
       paymobOrderId: paymobOrderId ? String(paymobOrderId) : "",
       clientSecret,
       publicKey: env.PAYMOB_PUBLIC_KEY,
-      checkoutUrl: clientSecret ? buildUnifiedCheckoutUrl(clientSecret) : ""
+      checkoutUrl,
+      redirectUrl: checkoutUrl
     };
   }
 
@@ -331,7 +344,8 @@ export const createPaymentIntent = async (
     orderNumber: order.orderNumber,
     paymobOrderId: String(paymobOrder.id),
     paymentKey: paymentKey.token,
-    iframeUrl
+    iframeUrl,
+    redirectUrl: iframeUrl
   };
 };
 

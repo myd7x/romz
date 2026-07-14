@@ -22,6 +22,16 @@ const issueTokens = (user) => ({
   })
 });
 
+const firstTokenValue = (value) => (Array.isArray(value) ? value[0] : value);
+
+const getRefreshTokenFromRequest = (req) =>
+  firstTokenValue(
+    req.cookies?.[env.JWT_REFRESH_COOKIE_NAME] ||
+      req.body?.refreshToken ||
+      req.body?.refresh_token ||
+      req.headers["x-refresh-token"]
+  );
+
 const setOtp = async (user) => {
   const otp = generateOtp();
   user.otp = {
@@ -47,7 +57,8 @@ export const register = async (payload, res) => {
 
   return {
     user: user.toSafeObject(),
-    accessToken: tokens.accessToken
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken
   };
 };
 
@@ -63,7 +74,8 @@ export const login = async ({ email, password }, res) => {
 
   return {
     user: user.toSafeObject(),
-    accessToken: tokens.accessToken
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken
   };
 };
 
@@ -107,7 +119,8 @@ export const resendOtp = async ({ email }) => {
 };
 
 export const refresh = async (req, res) => {
-  const token = req.cookies?.[env.JWT_REFRESH_COOKIE_NAME];
+  const token = getRefreshTokenFromRequest(req);
+
 
   if (!token) {
     throw new AppError("Refresh token is required", 401);
@@ -125,12 +138,13 @@ export const refresh = async (req, res) => {
 
   return {
     user: user.toSafeObject(),
-    accessToken: tokens.accessToken
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken
   };
 };
 
 export const logout = async (req, res) => {
-  const token = req.cookies?.[env.JWT_REFRESH_COOKIE_NAME];
+  const token = getRefreshTokenFromRequest(req);
 
   if (token) {
     try {

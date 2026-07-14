@@ -54,14 +54,11 @@ export const updateCoupon = async (id, payload) => {
 };
 
 export const deleteCoupon = async (id) => {
-  const coupon = await Coupon.findById(id);
+  const coupon = await Coupon.findByIdAndDelete(id);
 
   if (!coupon) {
     throw new AppError("Coupon not found", 404);
   }
-
-  coupon.isActive = false;
-  await coupon.save();
 };
 
 export const validateCoupon = async ({ code, subtotal }, user = null) => {

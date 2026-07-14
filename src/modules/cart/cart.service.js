@@ -9,10 +9,13 @@ const getEffectiveUnitPrice = (product, variant) =>
 
 const findVariant = (product, item) => {
   if (item.variantId) {
-    return product.variants.id(item.variantId);
+    const variant = product.variants.id(item.variantId);
+    if (variant) return variant;
   }
 
-  return product.variants.find((variant) => variant.sku === item.sku);
+  return item.sku
+    ? product.variants.find((variant) => variant.sku === item.sku)
+    : null;
 };
 
 export const calculateCouponDiscount = (coupon, subtotal, user = null) => {
@@ -33,7 +36,11 @@ export const calculateCouponDiscount = (coupon, subtotal, user = null) => {
   }
 
   if (subtotal < coupon.minOrderTotal) {
-    throw new AppError(`Minimum order total for this coupon is ${coupon.minOrderTotal}`, 400);
+    throw new AppError(`Minimum order total for this coupon is ${coupon.minOrderTotal}`, 400, {
+      couponCode: coupon.code,
+      subtotal,
+      minOrderTotal: coupon.minOrderTotal
+    });
   }
 
   if (user && coupon.usedBy.some((usedUserId) => String(usedUserId) === String(user._id))) {

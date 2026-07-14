@@ -48,6 +48,11 @@ export const updateStoreSettingsSchema = Joi.object({
     tiktok: Joi.string().trim().max(500).allow("").optional(),
     whatsapp: Joi.string().trim().max(500).allow("").optional()
   }).optional(),
+  payments: Joi.object({
+    paymob: Joi.object({
+      active: Joi.boolean().optional()
+    }).optional()
+  }).optional(),
   freeShippingThreshold: Joi.number().min(0).allow(null).optional(),
   lowStockThreshold: Joi.number().integer().min(0).optional()
 }).min(1);

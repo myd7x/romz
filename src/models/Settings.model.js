@@ -39,6 +39,11 @@ const settingsSchema = new mongoose.Schema(
       tiktok: { type: String, default: "" },
       whatsapp: { type: String, default: "" }
     },
+    payments: {
+      paymob: {
+        active: { type: Boolean, default: true }
+      }
+    },
     freeShippingThreshold: { type: Number, min: 0, default: null },
     lowStockThreshold: { type: Number, min: 0, default: 5 }
   },
