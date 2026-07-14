@@ -65,6 +65,7 @@ export const register = async (payload, res) => {
 export const login = async ({ email, password }, res) => {
   const user = await User.findOne({ email }).select("+password");
 
+
   if (!user || !(await user.comparePassword(password))) {
     throw new AppError("Invalid email or password", 401);
   }
