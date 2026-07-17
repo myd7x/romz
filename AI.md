@@ -208,6 +208,16 @@ PATCH  /reviews/:id/approve          admin
 DELETE /reviews/:id                  admin
 ```
 
+### Contact
+
+```text
+POST   /contact                       public, optional auth
+GET    /contact                       admin
+GET    /contact/:id                   admin
+PATCH  /contact/:id                   admin
+DELETE /contact/:id                   admin
+```
+
 ### Coupons and cart
 
 ```text
@@ -346,6 +356,7 @@ GET    /analytics/payment-split
 
 ### Other models
 
+- ContactMessage: public contact submissions with name, email, phone, subject, message, source, status, admin notes, optional linked user, request metadata, and read/replied timestamps.
 - Review: optional user/guest, rating, comment, verified purchase flag, approval state.
 - ShippingZone: unique governorate, fee, estimated days, active state.
 

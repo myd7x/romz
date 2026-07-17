@@ -37,6 +37,12 @@ export const trackOrderLimiter = buildLimiter({
   message: "Too many order tracking attempts. Please try again later."
 });
 
+export const contactLimiter = buildLimiter({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  message: "Too many contact form submissions. Please try again later."
+});
+
 export const paymentWebhookLimiter = buildLimiter({
   windowMs: 60 * 1000,
   limit: 120,

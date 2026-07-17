@@ -34,6 +34,7 @@ export const env = {
   SMTP_USER: process.env.SMTP_USER || "",
   SMTP_PASS: process.env.SMTP_PASS || "",
   SMTP_FROM: process.env.SMTP_FROM || "ROMZ <no-reply@romz.local>",
+  CONTACT_EMAIL: process.env.CONTACT_EMAIL || process.env.ADMIN_EMAIL || "admin@romz.local",
   ADMIN_NAME: process.env.ADMIN_NAME || "ROMZ Admin",
   ADMIN_EMAIL: process.env.ADMIN_EMAIL || "admin@romz.local",
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || "change-me",

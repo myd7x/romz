@@ -2,7 +2,7 @@
 
 This document describes every mounted API in the ROMZ backend for frontend integration.
 
-Last synchronized with the backend source: `2026-07-14`.
+Last synchronized with the backend source: `2026-07-17`.
 
 The backend is the source of truth for prices, discounts, shipping fees, stock, payment status,
 and order status. The frontend should display values returned by `/cart/validate` and `/orders`
@@ -114,6 +114,8 @@ Frontend JSON paths use the API envelope's `data` field:
 | Auth | `data.user`, `data.accessToken`, `data.refreshToken` |
 | Product list/detail | `data.products`, `data.product` |
 | Settings | `data.settings` |
+| Contact submit | `data.message` |
+| Admin contact list/detail | `data.messages`, `data.message` |
 | Cart validation | `data.cart` |
 | Order create/detail/track | `data.order` |
 | Paymob intent | `data.payment` |
@@ -129,6 +131,7 @@ Rate-limited endpoints:
 | Register/login | 20 requests per 15 minutes |
 | Verify/resend OTP | 8 requests per 15 minutes |
 | Forgot/reset password | 5 requests per 60 minutes |
+| Contact form submit | 10 requests per 15 minutes |
 | Order tracking | 30 requests per 15 minutes |
 | Paymob webhook | 120 requests per minute |
 
@@ -169,13 +172,13 @@ Paginated responses include:
 
 ```json
 {
-  "url": "/uploads/products/product.jpg",
-  "publicId": "uploads/products/product.jpg",
+  "url": "https://res.cloudinary.com/example/image/upload/v1/romz/products/product.jpg",
+  "publicId": "romz/products/product",
   "color": "Black"
 }
 ```
 
-Product and category image `url` and `publicId` are created by the backend after Multer receives the file and saves it under `/uploads`. `color` exists on product images and can be set for uploaded files with `imageColors`. Category images only use `url` and `publicId`.
+Product and category image `url` and `publicId` are created by the backend after Multer receives the file and uploads it to Cloudinary. `color` exists on product images and can be set for uploaded files with `imageColors`. Category images only use `url` and `publicId`.
 
 ### Product Variant
 
@@ -706,6 +709,109 @@ Settings validation rules:
 | `payments.paymob.active` | optional boolean |
 | `freeShippingThreshold` | optional number >= 0 or `null` |
 | `lowStockThreshold` | optional integer >= 0 |
+
+## Contact APIs
+
+The contact form is public and stores every message in MongoDB. If SMTP is configured, the backend also sends an email notification to `CONTACT_EMAIL`; when `CONTACT_EMAIL` is empty it falls back to `ADMIN_EMAIL`. Email notification failure does not fail the form submission.
+
+| Method | Path | Auth | Request | Success Response |
+| --- | --- | --- | --- | --- |
+| `POST` | `/contact` | Public, optional user Bearer | contact body | `201`, `data: { message }` |
+| `GET` | `/contact` | Admin | query params | `200`, `data: { messages }`, `meta` |
+| `GET` | `/contact/:id` | Admin | no body | `200`, `data: { message }` |
+| `PATCH` | `/contact/:id` | Admin | status/admin notes | `200`, `data: { message }` |
+| `DELETE` | `/contact/:id` | Admin | no body | `204 No Content` |
+
+Public contact submit request:
+
+```json
+{
+  "name": "ROMZ Customer",
+  "email": "customer@example.com",
+  "phone": "01000000000",
+  "subject": "Question about delivery",
+  "message": "I want to know when delivery is available for Cairo orders.",
+  "source": "contact-page"
+}
+```
+
+Public submit response intentionally returns only a safe receipt:
+
+```json
+{
+  "success": true,
+  "message": "Contact message submitted",
+  "data": {
+    "message": {
+      "id": "64f000000000000000000050",
+      "status": "new",
+      "createdAt": "2026-07-17T12:00:00.000Z"
+    }
+  }
+}
+```
+
+Contact validation rules:
+
+| Field | Rules |
+| --- | --- |
+| `name` | required, 2-120 chars |
+| `email` | required, valid email, lowercased |
+| `phone` | optional, max 40 chars, can be empty string |
+| `subject` | required, 2-160 chars |
+| `message` | required, 10-3000 chars |
+| `source` | optional, max 80 chars, defaults to `storefront` |
+
+Admin list query params:
+
+| Query | Type | Notes |
+| --- | --- | --- |
+| `page`, `limit` | number | Pagination |
+| `status` | string | `new`, `read`, `replied`, or `archived` |
+| `email` | string | Exact lowercase email match |
+| `search` | string | Searches name, email, phone, subject, and message |
+| `sort` | string | Default `-createdAt` |
+
+Admin contact message shape:
+
+```json
+{
+  "_id": "64f000000000000000000050",
+  "name": "ROMZ Customer",
+  "email": "customer@example.com",
+  "phone": "01000000000",
+  "subject": "Question about delivery",
+  "message": "I want to know when delivery is available for Cairo orders.",
+  "status": "new",
+  "adminNotes": "",
+  "source": "contact-page",
+  "ipAddress": "::1",
+  "userAgent": "Mozilla/5.0 ...",
+  "user": null,
+  "readAt": null,
+  "repliedAt": null,
+  "createdAt": "2026-07-17T12:00:00.000Z",
+  "updatedAt": "2026-07-17T12:00:00.000Z"
+}
+```
+
+Admin update request:
+
+```json
+{
+  "status": "read",
+  "adminNotes": "Needs WhatsApp follow-up"
+}
+```
+
+Status behavior:
+
+| Status | Backend behavior |
+| --- | --- |
+| `new` | Clears `readAt` and `repliedAt` |
+| `read` | Sets `readAt` if it was empty |
+| `replied` | Sets `repliedAt` if it was empty |
+| `archived` | Keeps existing timestamps |
 
 ## Product APIs
 

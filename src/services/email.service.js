@@ -86,6 +86,14 @@ export const sendEmail = async ({ to, subject, text, html }) => {
   }
 };
 
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+
 export const sendOtpEmail = (user, otpCode) =>
   sendEmail({
     to: user.email,
@@ -143,3 +151,26 @@ export const sendOrderStatusEmail = (order) => {
     `,
   });
 };
+
+export const sendContactMessageEmail = (message) =>
+  sendEmail({
+    to: env.CONTACT_EMAIL || env.ADMIN_EMAIL,
+    subject: `ROMZ contact form: ${message.subject}`,
+    text: [
+      `Name: ${message.name}`,
+      `Email: ${message.email}`,
+      `Phone: ${message.phone || "-"}`,
+      `Subject: ${message.subject}`,
+      "",
+      message.message
+    ].join("\n"),
+    html: `
+      <p><strong>New ROMZ contact message</strong></p>
+      <p><strong>Name:</strong> ${escapeHtml(message.name)}</p>
+      <p><strong>Email:</strong> ${escapeHtml(message.email)}</p>
+      <p><strong>Phone:</strong> ${escapeHtml(message.phone || "-")}</p>
+      <p><strong>Subject:</strong> ${escapeHtml(message.subject)}</p>
+      <p><strong>Message:</strong></p>
+      <p>${escapeHtml(message.message).replaceAll("\n", "<br>")}</p>
+    `,
+  });
