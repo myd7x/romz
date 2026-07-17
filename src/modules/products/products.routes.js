@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { requireAuth, isAdmin } from "../../middlewares/auth.middleware.js";
-import { compressImages } from "../../middlewares/imageCompression.middleware.js";
 import { parseJsonFields } from "../../middlewares/parseJsonFields.middleware.js";
 import { upload } from "../../middlewares/upload.middleware.js";
 import { validate } from "../../middlewares/validate.middleware.js";
@@ -51,7 +50,6 @@ router.post(
   requireAuth,
   isAdmin,
   upload.array("images", 8),
-  compressImages,
   parseProductBody,
   validate(createProductSchema),
   asyncHandler(productsController.createProduct)
@@ -62,7 +60,6 @@ router.patch(
   isAdmin,
   validate(productIdParamsSchema, "params"),
   upload.array("images", 8),
-  compressImages,
   parseProductBody,
   validate(updateProductSchema),
   asyncHandler(productsController.updateProduct)

@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { requireAuth, isAdmin } from "../../middlewares/auth.middleware.js";
-import { compressImages } from "../../middlewares/imageCompression.middleware.js";
 import { parseJsonFields } from "../../middlewares/parseJsonFields.middleware.js";
 import { upload } from "../../middlewares/upload.middleware.js";
 import { validate } from "../../middlewares/validate.middleware.js";
@@ -44,7 +43,6 @@ router.post(
   requireAuth,
   isAdmin,
   upload.single("image"),
-  compressImages,
   parseCategoryBody,
   normalizeCategoryMultipartBody,
   validate(createCategorySchema),
@@ -56,7 +54,6 @@ router.patch(
   isAdmin,
   validate(categoryIdParamsSchema, "params"),
   upload.single("image"),
-  compressImages,
   parseCategoryBody,
   normalizeCategoryMultipartBody,
   validate(updateCategorySchema),

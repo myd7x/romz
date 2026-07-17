@@ -803,12 +803,12 @@ and the string `"null"` are not valid numbers. To remove an existing sale, send 
 
 Product photo workflow:
 
-1. On create, send product data plus photo files as `multipart/form-data`; backend compresses images, saves them locally under `uploads/products`, and stores the returned `/uploads/products/...` `url` and `publicId`.
+1. On create, send product data plus photo files as `multipart/form-data`; backend uploads the original selected files to Cloudinary and stores the returned absolute `url` and `publicId`.
 2. On update with only new photos, send files in `images`; backend appends them to the product's current images.
 3. On update when removing/reordering old photos, send `existingImages` as the exact image objects to keep, then optionally send new files in `images`; backend saves `existingImages + uploadedImages`.
 4. To edit selected colors for existing photos, either update each object in `existingImages` with its new `color`, or send `existingImageColors` as an array aligned to `existingImages`.
-5. Any current product image omitted from `existingImages` is deleted from the server filesystem after the product update succeeds.
-6. Deleting a product also removes all of its product photo files from the server filesystem.
+5. Any current product image omitted from `existingImages` is deleted from Cloudinary after the product update succeeds.
+6. Deleting a product also removes all of its product photo files from Cloudinary.
 7. Do not send external product photo links as the normal admin upload workflow. New photos should be sent as files.
 
 Multipart upload example:
