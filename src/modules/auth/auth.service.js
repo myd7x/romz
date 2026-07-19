@@ -1,6 +1,7 @@
 import { env } from "../../config/env.js";
 import User from "../../models/User.model.js";
 import { sendOtpEmail, sendPasswordResetEmail } from "../../services/email.service.js";
+import { sendOtpWhatsapp, sendPasswordResetWhatsapp } from "../../services/whatsapp.service.js";
 import { AppError } from "../../utils/AppError.js";
 import { clearRefreshCookie, setRefreshCookie } from "../../utils/cookies.js";
 import { generateOtp, generateSecureToken, hashValue } from "../../utils/crypto.js";
@@ -40,6 +41,12 @@ const setOtp = async (user) => {
   };
   await user.save();
   await sendOtpEmail(user, otp);
+
+  try {
+    await sendOtpWhatsapp(user, otp);
+  } catch (error) {
+    console.error("[auth] OTP WhatsApp failed:", error);
+  }
 };
 
 export const register = async (payload, res) => {
@@ -172,6 +179,12 @@ export const forgotPassword = async ({ email }) => {
   await user.save();
 
   await sendPasswordResetEmail(user, resetToken);
+
+  try {
+    await sendPasswordResetWhatsapp(user, resetToken);
+  } catch (error) {
+    console.error("[auth] Password reset WhatsApp failed:", error);
+  }
 };
 
 export const resetPassword = async ({ token, password }) => {

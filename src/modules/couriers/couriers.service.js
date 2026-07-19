@@ -1,6 +1,7 @@
 import Order from "../../models/Order.model.js";
 import { env } from "../../config/env.js";
 import { sendOrderStatusEmail } from "../../services/email.service.js";
+import { sendOrderStatusWhatsapp } from "../../services/whatsapp.service.js";
 import { AppError } from "../../utils/AppError.js";
 import { courierProviders } from "./couriers.validation.js";
 import { mylerzRequest } from "./mylerz.client.js";
@@ -41,6 +42,12 @@ export const assignTracking = async (orderId, payload) => {
 
   if (payload.markAsShipped) {
     await sendOrderStatusEmail(order);
+
+    try {
+      await sendOrderStatusWhatsapp(order);
+    } catch (error) {
+      console.error("[couriers] Order status WhatsApp failed:", error);
+    }
   }
 
   return order;
@@ -171,6 +178,12 @@ export const createMylerzShipment = async (orderId, payload) => {
 
   await order.save();
   await sendOrderStatusEmail(order);
+
+  try {
+    await sendOrderStatusWhatsapp(order);
+  } catch (error) {
+    console.error("[couriers] Order status WhatsApp failed:", error);
+  }
 
   return { order, mylerz: data.Value };
 };

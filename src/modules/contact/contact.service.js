@@ -1,5 +1,6 @@
 import ContactMessage from "../../models/ContactMessage.model.js";
 import { sendContactMessageEmail } from "../../services/email.service.js";
+import { sendContactMessageWhatsapp } from "../../services/whatsapp.service.js";
 import { AppError } from "../../utils/AppError.js";
 import { buildMeta, buildPagination, buildSort } from "../../utils/apiFeatures.js";
 
@@ -31,6 +32,12 @@ export const createContactMessage = async (payload, { user = null, req = null } 
     await sendContactMessageEmail(message);
   } catch (error) {
     console.error("[contact] Notification email failed:", error);
+  }
+
+  try {
+    await sendContactMessageWhatsapp(message);
+  } catch (error) {
+    console.error("[contact] Notification WhatsApp failed:", error);
   }
 
   return message;

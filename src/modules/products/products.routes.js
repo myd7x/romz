@@ -22,7 +22,9 @@ const parseProductBody = parseJsonFields([
   "existingImageColors",
   "imageColors",
   "variants",
-  "badges"
+  "badges",
+  "sizeChart",
+  "fabricCare"
 ]);
 
 router.get("/", asyncHandler(productsController.listProducts));

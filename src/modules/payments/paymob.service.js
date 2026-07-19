@@ -4,6 +4,7 @@ import Coupon from "../../models/Coupon.model.js";
 import Order from "../../models/Order.model.js";
 import Product from "../../models/Product.model.js";
 import { sendOrderStatusEmail } from "../../services/email.service.js";
+import { sendOrderStatusWhatsapp } from "../../services/whatsapp.service.js";
 import { AppError } from "../../utils/AppError.js";
 
 const hmacFields = [
@@ -463,6 +464,12 @@ export const handlePaymobWebhook = async (payload, query = {}) => {
         note: "Paymob payment confirmed"
       });
       await sendOrderStatusEmail(order);
+
+      try {
+        await sendOrderStatusWhatsapp(order);
+      } catch (error) {
+        console.error("[paymob] Order status WhatsApp failed:", error);
+      }
     }
   } else if (transaction.pending !== true && order.paymentStatus !== "paid") {
     order.paymentStatus = "failed";

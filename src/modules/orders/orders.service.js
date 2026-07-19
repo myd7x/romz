@@ -4,6 +4,7 @@ import Product from "../../models/Product.model.js";
 import Settings from "../../models/Settings.model.js";
 import ShippingZone from "../../models/ShippingZone.model.js";
 import { sendOrderConfirmationEmail, sendOrderStatusEmail } from "../../services/email.service.js";
+import { sendOrderConfirmationWhatsapp, sendOrderStatusWhatsapp } from "../../services/whatsapp.service.js";
 import { AppError } from "../../utils/AppError.js";
 import { buildMeta, buildPagination } from "../../utils/apiFeatures.js";
 import { priceCart } from "../cart/cart.service.js";
@@ -206,6 +207,13 @@ export const createOrder = async (payload, user = null) => {
     }
 
     await sendOrderConfirmationEmail(order);
+
+    try {
+      await sendOrderConfirmationWhatsapp(order);
+    } catch (error) {
+      console.error("[orders] Order confirmation WhatsApp failed:", error);
+    }
+
     return order;
   } catch (error) {
     if (stockDecremented) {
@@ -320,6 +328,12 @@ export const cancelOrder = async (id, { contact = "", reason = "" } = {}, user =
   await order.save();
   await sendOrderStatusEmail(order);
 
+  try {
+    await sendOrderStatusWhatsapp(order);
+  } catch (error) {
+    console.error("[orders] Order status WhatsApp failed:", error);
+  }
+
   return order;
 };
 
@@ -330,6 +344,12 @@ export const updateOrderStatus = async (id, { status, note = "" }) => {
   order.statusHistory.push({ status, at: new Date(), note });
   await order.save();
   await sendOrderStatusEmail(order);
+
+  try {
+    await sendOrderStatusWhatsapp(order);
+  } catch (error) {
+    console.error("[orders] Order status WhatsApp failed:", error);
+  }
 
   return order;
 };

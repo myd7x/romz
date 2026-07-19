@@ -31,6 +31,25 @@ const variantSchema = Joi.object({
   priceOverride: Joi.number().min(0).allow(null).default(null)
 });
 
+const optionalLocalizedStringSchema = Joi.object({
+  ar: Joi.string().trim().max(4000).allow("").default(""),
+  en: Joi.string().trim().max(4000).allow("").default("")
+});
+
+const sizeChartSchema = Joi.object({
+  columns: Joi.array().items(optionalLocalizedStringSchema).max(20).default([]),
+  rows: Joi.array()
+    .items(Joi.array().items(Joi.string().trim().max(120).allow("")).max(20))
+    .max(60)
+    .default([]),
+  note: optionalLocalizedStringSchema.default({})
+});
+
+const fabricCareSchema = Joi.object({
+  fabric: optionalLocalizedStringSchema.default({}),
+  care: optionalLocalizedStringSchema.default({})
+});
+
 export const createProductSchema = Joi.object({
   name: localizedStringSchema,
   slug: Joi.string().trim().lowercase().max(220).optional(),
@@ -43,6 +62,8 @@ export const createProductSchema = Joi.object({
   imageColors: imageColorsSchema,
   variants: Joi.array().items(variantSchema).min(1).required(),
   badges: Joi.array().items(Joi.string().valid("new", "best-seller", "sale")).default([]),
+  sizeChart: sizeChartSchema.optional(),
+  fabricCare: fabricCareSchema.optional(),
   isActive: Joi.boolean().default(true)
 }).or("category", "categories");
 
@@ -60,6 +81,8 @@ export const updateProductSchema = Joi.object({
   imageColors: Joi.array().items(Joi.string().trim().max(80).allow("")).optional(),
   variants: Joi.array().items(variantSchema).min(1).optional(),
   badges: Joi.array().items(Joi.string().valid("new", "best-seller", "sale")).optional(),
+  sizeChart: sizeChartSchema.optional(),
+  fabricCare: fabricCareSchema.optional(),
   isActive: Joi.boolean().optional()
 });
 

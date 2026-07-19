@@ -8,6 +8,31 @@ const localizedStringSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const optionalLocalizedStringSchema = new mongoose.Schema(
+  {
+    ar: { type: String, trim: true, default: "" },
+    en: { type: String, trim: true, default: "" }
+  },
+  { _id: false }
+);
+
+const sizeChartSchema = new mongoose.Schema(
+  {
+    columns: { type: [optionalLocalizedStringSchema], default: [] },
+    rows: { type: [[String]], default: [] },
+    note: { type: optionalLocalizedStringSchema, default: () => ({}) }
+  },
+  { _id: false }
+);
+
+const fabricCareSchema = new mongoose.Schema(
+  {
+    fabric: { type: optionalLocalizedStringSchema, default: () => ({}) },
+    care: { type: optionalLocalizedStringSchema, default: () => ({}) }
+  },
+  { _id: false }
+);
+
 const imageSchema = new mongoose.Schema(
   {
     url: { type: String, required: true },
@@ -51,6 +76,8 @@ const productSchema = new mongoose.Schema(
     basePrice: { type: Number, min: 0, required: true },
     salePrice: { type: Number, min: 0, default: null },
     images: { type: [imageSchema], default: [] },
+    sizeChart: { type: sizeChartSchema, default: () => ({}) },
+    fabricCare: { type: fabricCareSchema, default: () => ({}) },
     variants: { type: [variantSchema], default: [] },
     badges: {
       type: [String],
