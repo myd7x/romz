@@ -63,33 +63,34 @@ const getPaymentFields = (order) => {
   if (order.paymentMethod === "cod") {
     return {
       Payment_Type: "COD",
-      COD_Value: order.total
+      COD_Value: String(order.total)
     };
   }
 
   return {
     Payment_Type: "PP",
-    COD_Value: 0
+    COD_Value: "0"
   };
 };
 
 const buildPieces = (order, payload) => {
   if (payload.pieces?.length) {
     return payload.pieces.map((piece) => ({
-      PieceNo: piece.pieceNo,
-      Weight: piece.weight ?? env.MYLERZ_DEFAULT_WEIGHT_KG,
+      pieceNo: piece.pieceNo,
+      Weight: String(piece.weight ?? env.MYLERZ_DEFAULT_WEIGHT_KG),
       ItemCategory: piece.itemCategory || env.MYLERZ_DEFAULT_PRODUCT_CATEGORY,
       Dimensions: piece.dimensions || payload.dimensions || "",
-      Special_Notes: piece.specialNotes || ""
+      SpecialNotes: piece.specialNotes || ""
     }));
   }
 
   return order.items.map((item, index) => ({
-    PieceNo: index + 1,
-    Weight: env.MYLERZ_DEFAULT_WEIGHT_KG,
+    pieceNo: index + 1,
+    Weight: String(env.MYLERZ_DEFAULT_WEIGHT_KG),
     ItemCategory: payload.productCategory || env.MYLERZ_DEFAULT_PRODUCT_CATEGORY,
     Dimensions: payload.dimensions || "",
-    Special_Notes: `${item.nameSnapshot.en} / ${item.sku} / qty ${item.qty}`
+    SpecialNotes: `${item.nameSnapshot.en} / ${item.sku} / qty ${item.qty}`,
+    Quantity: item.qty
   }));
 };
 
@@ -153,7 +154,11 @@ export const createMylerzShipment = async (orderId, payload) => {
   const firstPackage = extractFirstPackage(data);
 
   if (!firstPackage?.BarCode) {
-    throw new AppError("Mylerz did not return a package barcode", 502, data);
+    const reason =
+      firstPackage?.ErrorMessage ||
+      data?.Value?.ErrorMessage ||
+      "Mylerz did not return a package barcode";
+    throw new AppError(reason, 502, data);
   }
 
   order.courier = {
@@ -222,17 +227,12 @@ export const getMylerzTrackingUrl = async (awb) => {
 };
 
 export const cancelMylerzPackage = async (awb, { referenceNumber = "" } = {}) => {
-  if (!env.MYLERZ_MERCHANT_ID) {
-    throw new AppError("MYLERZ_MERCHANT_ID is not configured", 500);
-  }
-
   const data = await mylerzRequest("/api/packages/CancelPackage", {
     method: "POST",
     body: [
       {
         Barcode: awb,
-        ReferenceNumber: referenceNumber,
-        MerchantId: Number(env.MYLERZ_MERCHANT_ID)
+        ReferenceNumber: referenceNumber
       }
     ]
   });

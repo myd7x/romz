@@ -54,10 +54,9 @@ export const env = {
   PAYMOB_CHECKOUT_FLOW: process.env.PAYMOB_CHECKOUT_FLOW || "auto",
   PAYMOB_BASE_URL: process.env.PAYMOB_BASE_URL || "https://accept.paymob.com",
   MYLERZ_BASE_URL:
-    process.env.MYLERZ_BASE_URL || "https://mylerzintegrationtest.mylerz.com",
+    process.env.MYLERZ_BASE_URL || "https://integration.mylerz.net",
   MYLERZ_USERNAME: process.env.MYLERZ_USERNAME || "",
   MYLERZ_PASSWORD: process.env.MYLERZ_PASSWORD || "",
-  MYLERZ_MERCHANT_ID: process.env.MYLERZ_MERCHANT_ID || "",
   MYLERZ_WAREHOUSE_NAME: process.env.MYLERZ_WAREHOUSE_NAME || "",
   MYLERZ_DEFAULT_SERVICE_TYPE: process.env.MYLERZ_DEFAULT_SERVICE_TYPE || "DTD",
   MYLERZ_DEFAULT_SERVICE: process.env.MYLERZ_DEFAULT_SERVICE || "ND",
