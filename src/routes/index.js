@@ -16,6 +16,7 @@ import {
   adminStorefrontSettingsRoutes,
   storefrontSettingsRoutes
 } from "../modules/settings/storefrontSettings.routes.js";
+import shippingRoutes from "../modules/shipping/shipping.routes.js";
 import shippingZoneRoutes from "../modules/shippingZones/shippingZones.routes.js";
 import userRoutes from "../modules/users/users.routes.js";
 
@@ -31,6 +32,7 @@ router.use("/reviews", reviewRoutes);
 router.use("/coupons", couponRoutes);
 router.use("/cart", cartRoutes);
 router.use("/orders", orderRoutes);
+router.use("/shipping", shippingRoutes);
 router.use("/shipping-zones", shippingZoneRoutes);
 router.use("/settings", settingsRoutes);
 router.use("/storefront-settings", storefrontSettingsRoutes);

@@ -16,6 +16,9 @@ const customerSchema = Joi.object({
 const shippingAddressSchema = Joi.object({
   governorate: Joi.string().trim().max(80).required(),
   city: Joi.string().trim().max(80).required(),
+  // Mylerz destination codes chosen from GET /shipping/governorates.
+  governorateCode: Joi.string().trim().max(80).required(),
+  zoneCode: Joi.string().trim().max(80).required(),
   street: Joi.string().trim().max(220).required(),
   apartment: Joi.string().trim().max(80).allow("").default(""),
   postal: Joi.string().trim().max(40).allow("").default("")

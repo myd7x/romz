@@ -104,12 +104,9 @@ Creates the shipment in Mylerz, saves the barcode/tracking on the order, flips t
 - `:orderId` — 24‑char Mongo ObjectId.
 - **All body fields are optional** — the backend fills everything from the order and from server defaults. Send `{}` for the simplest case. Send fields only to override.
 
-> ⚠️ **Important — send Mylerz codes for the destination.** Mylerz rejects the shipment (`INPUT_INVALID`) if the warehouse or destination isn't a value it knows.
-> - `warehouseName` must be one of the account's real warehouses from **`GET /couriers/mylerz/warehouses`** (`.Name`). For this account that is **`Alexandria`** (also the server default, so you can omit it).
-> - `cityCode` must be a **city code** from **`GET /couriers/mylerz/city-zones`** (`.Code`, e.g. `CA` = Cairo).
-> - `neighborhoodCode` must be a **zone code** inside that city (`.Zones[].Code`, e.g. `Nasr City`, `HEl`, `Zamalek`).
+> ✅ **Destination codes now come from the order.** Since checkout captures the Mylerz `governorateCode` + `zoneCode` (see the storefront checkout doc), the admin **"Create shipment"** button can just send `{}` — the backend uses the stored codes for City/Neighborhood and the default warehouse (`Alexandria`). You only need to pass `cityCode`/`neighborhoodCode` here to *override* an order placed before this flow existed.
 >
-> **Do not pass the customer's free‑text city/governorate here.** Build a two‑step City → Zone dropdown from `#2` and send the selected codes. If you omit them, the backend falls back to the order's text address, which will usually fail Mylerz validation.
+> Mylerz still rejects the shipment (`INPUT_INVALID`) if a value is unknown: `warehouseName` must exist in **`#1`**, `cityCode` must be a city `.Code` from **`#2`**, and `neighborhoodCode` a zone `.Zones[].Code`.
 
 **Request body (all optional)**
 

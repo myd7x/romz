@@ -65,6 +65,7 @@ export const updateStoreSettingsSchema = Joi.object({
     }).optional()
   }).optional(),
   freeShippingThreshold: Joi.number().min(0).allow(null).optional(),
+  fallbackShippingFee: Joi.number().min(0).allow(null).optional(),
   lowStockThreshold: Joi.number().integer().min(0).optional(),
   sizeChart: sizeChartSchema.optional()
 }).min(1);

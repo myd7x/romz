@@ -13,6 +13,10 @@ const shippingAddressSchema = new mongoose.Schema(
   {
     governorate: { type: String, trim: true, required: true },
     city: { type: String, trim: true, required: true },
+    // Mylerz destination codes selected at checkout (from GetCityZoneList).
+    // governorateCode = city .Code (e.g. "CA"); zoneCode = zone .Code (e.g. "Nasr City").
+    governorateCode: { type: String, trim: true, default: "" },
+    zoneCode: { type: String, trim: true, default: "" },
     street: { type: String, trim: true, required: true },
     apartment: { type: String, trim: true, default: "" },
     postal: { type: String, trim: true, default: "" }

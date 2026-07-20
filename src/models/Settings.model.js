@@ -71,6 +71,8 @@ const settingsSchema = new mongoose.Schema(
       }
     },
     freeShippingThreshold: { type: Number, min: 0, default: null },
+    // Flat fee used only when Mylerz can't quote AND no matching ShippingZone exists. null = no flat fallback.
+    fallbackShippingFee: { type: Number, min: 0, default: null },
     lowStockThreshold: { type: Number, min: 0, default: 5 },
     sizeChart: { type: sizeChartSchema, default: defaultSizeChart }
   },

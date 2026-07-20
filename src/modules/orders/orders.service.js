@@ -1,48 +1,17 @@
 import Coupon from "../../models/Coupon.model.js";
 import Order from "../../models/Order.model.js";
 import Product from "../../models/Product.model.js";
-import Settings from "../../models/Settings.model.js";
-import ShippingZone from "../../models/ShippingZone.model.js";
 import { sendOrderConfirmationEmail, sendOrderStatusEmail } from "../../services/email.service.js";
 import { sendOrderConfirmationWhatsapp, sendOrderStatusWhatsapp } from "../../services/whatsapp.service.js";
 import { AppError } from "../../utils/AppError.js";
 import { buildMeta, buildPagination } from "../../utils/apiFeatures.js";
 import { priceCart } from "../cart/cart.service.js";
+import { getShippingFeeForCart } from "../shipping/shipping.service.js";
 
 const orderPrefix = "RZ";
 const cancellableStatuses = ["pending", "confirmed"];
 
 const roundMoney = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
-
-const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-const getShippingZone = async (governorate) => {
-  const zone = await ShippingZone.findOne({
-    governorate: new RegExp(`^${escapeRegExp(governorate)}$`, "i"),
-    isActive: true
-  });
-
-  if (!zone) {
-    throw new AppError("Shipping is not available for this governorate", 400);
-  }
-
-  return zone;
-};
-
-const getShippingFee = async (governorate, cartTotal) => {
-  const [zone, settings] = await Promise.all([
-    getShippingZone(governorate),
-    Settings.findOne({ key: "store" }).lean()
-  ]);
-
-  const threshold = settings?.freeShippingThreshold;
-  const fee = threshold !== null && threshold !== undefined && cartTotal >= threshold ? 0 : zone.fee;
-
-  return {
-    fee: roundMoney(fee),
-    zone
-  };
-};
 
 const generateOrderNumber = async () => {
   const year = new Date().getFullYear();
@@ -173,7 +142,12 @@ export const createOrder = async (payload, user = null) => {
     throw new AppError("Cart has unavailable items", 400, cart.unavailableItems);
   }
 
-  const shipping = await getShippingFee(payload.shippingAddress.governorate, cart.total);
+  const shipping = await getShippingFeeForCart({
+    cartTotal: cart.total,
+    zoneCode: payload.shippingAddress.zoneCode,
+    governorate: payload.shippingAddress.governorate,
+    paymentMethod: payload.paymentMethod
+  });
   const orderNumber = await generateOrderNumber();
   const shippingFee = shipping.fee;
   const total = roundMoney(cart.total + shippingFee);

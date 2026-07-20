@@ -68,8 +68,9 @@ const buildMylerzOrder = (order, payload) => ({
   Floor_No: payload.floorNo || "",
   Apartment_No: payload.apartmentNo || order.shippingAddress.apartment || "",
   Country: "Egypt",
-  City: payload.cityCode || order.shippingAddress.city,
-  Neighborhood: payload.neighborhoodCode || order.shippingAddress.governorate,
+  City: payload.cityCode || order.shippingAddress.governorateCode || order.shippingAddress.city,
+  Neighborhood:
+    payload.neighborhoodCode || order.shippingAddress.zoneCode || order.shippingAddress.governorate,
   District: payload.districtCode || "",
   GeoLocation: payload.geolocation || "",
   Address_Category: payload.addressCategory || env.MYLERZ_DEFAULT_ADDRESS_CATEGORY,
