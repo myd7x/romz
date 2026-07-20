@@ -1,5 +1,5 @@
 import Category from "../../models/Category.model.js";
-import Settings from "../../models/Settings.model.js";
+import Settings, { defaultSizeChart } from "../../models/Settings.model.js";
 import { AppError } from "../../utils/AppError.js";
 
 const storeSettingsQuery = { key: "store" };
@@ -7,6 +7,11 @@ const storeSettingsQuery = { key: "store" };
 const settingsPopulate = [{ path: "featuredCollections", select: "name slug image parent order" }];
 
 const ensureSettingsDefaults = async (settings) => {
+  if (!settings.sizeChart) {
+    settings.sizeChart = defaultSizeChart();
+    await settings.save();
+  }
+
   if (settings.payments?.paymob?.active === undefined) {
     settings.payments = {
       ...(settings.payments?.toObject ? settings.payments.toObject() : settings.payments),
@@ -81,6 +86,14 @@ export const updateStoreSettings = async (payload) => {
       ...payload.socialLinks
     };
     delete payload.socialLinks;
+  }
+
+  if (payload.sizeChart) {
+    settings.sizeChart = {
+      ...(settings.sizeChart?.toObject ? settings.sizeChart.toObject() : settings.sizeChart),
+      ...payload.sizeChart
+    };
+    delete payload.sizeChart;
   }
 
   if (payload.payments) {

@@ -39,8 +39,8 @@ export const authenticateMylerz = async () => {
 
   const form = new URLSearchParams({
     grant_type: "password",
-    username: env.MYLERZ_USERNAME,
-    password: env.MYLERZ_PASSWORD
+    username: env.MYLERZ_USERNAME.trim(),
+    password: env.MYLERZ_PASSWORD.trim()
   });
 
   const response = await fetch(`${normalizeBaseUrl()}/token`, {
@@ -54,7 +54,13 @@ export const authenticateMylerz = async () => {
   const data = await parseJson(response);
 
   if (!response.ok) {
-    throw new AppError("Mylerz authentication failed", response.status, data);
+    const reason =
+      data?.error_description || data?.error || (typeof data === "string" ? data : "");
+    throw new AppError(
+      `Mylerz authentication failed${reason ? `: ${reason}` : ""}`,
+      response.status,
+      data
+    );
   }
 
   cachedToken = {

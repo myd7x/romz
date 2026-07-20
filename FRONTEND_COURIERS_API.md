@@ -104,11 +104,18 @@ Creates the shipment in Mylerz, saves the barcode/tracking on the order, flips t
 - `:orderId` — 24‑char Mongo ObjectId.
 - **All body fields are optional** — the backend fills everything from the order and from server defaults. Send `{}` for the simplest case. Send fields only to override.
 
+> ⚠️ **Important — send Mylerz codes for the destination.** Mylerz rejects the shipment (`INPUT_INVALID`) if the warehouse or destination isn't a value it knows.
+> - `warehouseName` must be one of the account's real warehouses from **`GET /couriers/mylerz/warehouses`** (`.Name`). For this account that is **`Alexandria`** (also the server default, so you can omit it).
+> - `cityCode` must be a **city code** from **`GET /couriers/mylerz/city-zones`** (`.Code`, e.g. `CA` = Cairo).
+> - `neighborhoodCode` must be a **zone code** inside that city (`.Zones[].Code`, e.g. `Nasr City`, `HEl`, `Zamalek`).
+>
+> **Do not pass the customer's free‑text city/governorate here.** Build a two‑step City → Zone dropdown from `#2` and send the selected codes. If you omit them, the backend falls back to the order's text address, which will usually fail Mylerz validation.
+
 **Request body (all optional)**
 
 | Field | Type | Default / source |
 |---|---|---|
-| `warehouseName` | string | `MYLERZ_WAREHOUSE_NAME` env |
+| `warehouseName` | string | `MYLERZ_WAREHOUSE_NAME` env (`Alexandria`); must exist in `#1` |
 | `pickupDueDate` | ISO date | tomorrow |
 | `packageSerial` | int ≥ 1 | `1` |
 | `reference` | string | `order.orderNumber` |
@@ -119,8 +126,8 @@ Creates the shipment in Mylerz, saves the barcode/tracking on the order, flips t
 | `serviceDate` | ISO date / null | `null` |
 | `serviceCategory` | string | `DELIVERY` |
 | `specialNotes` | string | `""` |
-| `cityCode` | string | `order.shippingAddress.city` |
-| `neighborhoodCode` | string | `order.shippingAddress.governorate` |
+| `cityCode` | string | Mylerz city code from `#2` (`.Code`). Falls back to order text — **send the code** |
+| `neighborhoodCode` | string | Mylerz zone code from `#2` (`.Zones[].Code`). Falls back to order text — **send the code** |
 | `districtCode` | string | `""` |
 | `geolocation` | string | `""` |
 | `addressCategory` | string | `H` |
@@ -236,8 +243,8 @@ The saved `order.courier` object looks like:
 
 ## Suggested frontend flow
 
-1. On the order page (COD/confirmed order), show a **"Create shipment"** button.
-2. (Optional) Load `#1 warehouses` + `#2 city‑zones` to let the admin pick a warehouse and confirm the zone, and call `#3 expected‑charges` to preview the fee.
-3. Click → `POST #4` with `{}` (or overrides). On success, store `order.courier.trackingNumber`.
+1. On the order page (COD/confirmed order), show a **"Create shipment"** button that opens a small form.
+2. In the form, load `#2 city‑zones` and render a **City → Zone** two‑step dropdown; the admin picks the destination that matches the customer's address. (Optionally load `#1 warehouses` and call `#3 expected‑charges` to preview the fee.)
+3. Submit → `POST #4` with `{ "cityCode": "<city .Code>", "neighborhoodCode": "<zone .Code>" }` (warehouse defaults to `Alexandria`). On success, store `order.courier.trackingNumber`.
 4. Show status via `#5`, timeline via `#7`, and a **"Track"** link via `#8`.
 5. **"Cancel shipment"** → `POST #9`, then update the order status through your orders module.

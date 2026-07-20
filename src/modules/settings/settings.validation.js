@@ -35,6 +35,17 @@ const promoBarSchema = localizedStringSchema.keys({
   active: Joi.boolean().optional()
 });
 
+const sizeChartSchema = Joi.object({
+  isActive: Joi.boolean().optional(),
+  title: localizedStringSchema.optional(),
+  note: localizedStringSchema.optional(),
+  columns: Joi.array().items(localizedStringWithDefaultsSchema).max(12).optional(),
+  rows: Joi.array()
+    .items(Joi.array().items(Joi.string().trim().max(120).allow("")).max(12))
+    .max(50)
+    .optional()
+}).min(1);
+
 export const updateStoreSettingsSchema = Joi.object({
   storeName: Joi.string().trim().min(1).max(120).optional(),
   promoBar: promoBarSchema.optional(),
@@ -54,5 +65,6 @@ export const updateStoreSettingsSchema = Joi.object({
     }).optional()
   }).optional(),
   freeShippingThreshold: Joi.number().min(0).allow(null).optional(),
-  lowStockThreshold: Joi.number().integer().min(0).optional()
+  lowStockThreshold: Joi.number().integer().min(0).optional(),
+  sizeChart: sizeChartSchema.optional()
 }).min(1);
