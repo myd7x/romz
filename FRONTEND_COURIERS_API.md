@@ -1,6 +1,6 @@
 # Couriers / Mylerz — Frontend API Reference
 
-All shipping is driven through the backend. **The frontend never talks to Mylerz directly** and never sees Mylerz credentials — it only calls the ROMZ backend, which authenticates to Mylerz server‑side.
+Shipping is handled by a single courier: **Mylerz**. The frontend never talks to Mylerz directly and never sees Mylerz credentials — it only calls the ROMZ backend, which authenticates to Mylerz server‑side.
 
 ---
 
@@ -35,31 +35,7 @@ Common status codes: `400` validation / business rule, `401` not logged in, `403
 
 ---
 
-## 1. List courier providers
-
-`GET /couriers/providers`
-
-Returns the providers the UI can offer for manual assignment.
-
-**Response**
-
-```json
-{
-  "success": true,
-  "message": "Courier providers fetched",
-  "data": {
-    "providers": [
-      { "id": "bosta", "label": "Bosta" },
-      { "id": "mylerz", "label": "Mylerz" },
-      { "id": "manual", "label": "Manual" }
-    ]
-  }
-}
-```
-
----
-
-## 2. Mylerz warehouses
+## 1. Warehouses
 
 `GET /couriers/mylerz/warehouses`
 
@@ -69,7 +45,7 @@ Use this to populate the **warehouse dropdown** on the "Create shipment" form. T
 
 ---
 
-## 3. Mylerz city / zone list
+## 2. City / zone list
 
 `GET /couriers/mylerz/city-zones`
 
@@ -79,7 +55,7 @@ Use this to map a customer's city/governorate to Mylerz **zone codes**. Needed t
 
 ---
 
-## 4. Expected charges (shipping price quote)
+## 3. Expected charges (shipping price quote)
 
 `POST /couriers/mylerz/expected-charges`
 
@@ -90,8 +66,8 @@ Quote the delivery cost before creating the shipment. All fields are **required*
 | Field | Type | Notes |
 |---|---|---|
 | `codValue` | number ≥ 0 | Cash‑to‑collect amount (0 for prepaid) |
-| `warehouseName` | string | From endpoint #2 |
-| `customerZoneCode` | string | From endpoint #3 |
+| `warehouseName` | string | From endpoint #1 |
+| `customerZoneCode` | string | From endpoint #2 |
 | `packageWeight` | number ≥ 0 | Kg |
 | `isFulfillment` | boolean | Default `false` |
 | `packageServiceTypeCode` | string | e.g. `DTD` |
@@ -119,7 +95,7 @@ Quote the delivery cost before creating the shipment. All fields are **required*
 
 ---
 
-## 5. Create a Mylerz shipment for an order ⭐
+## 4. Create a shipment for an order ⭐
 
 `POST /couriers/mylerz/orders/:orderId/shipment`
 
@@ -210,17 +186,17 @@ The saved `order.courier` object looks like:
 
 ---
 
-## 6. Package status
+## 5. Package status
 
 `GET /couriers/mylerz/packages/:awb/status`
 
-`:awb` = the barcode / tracking number saved on the order.
+`:awb` = the barcode / tracking number saved on the order (`order.courier.trackingNumber`).
 
 **Response** — `data.status` = Mylerz `PackageStatusResponse` (`BarCode`, `Status`, `PhaseName`, `StatusName`, `StatusDate`, …). Good for a compact status badge.
 
 ---
 
-## 7. Package details
+## 6. Package details
 
 `GET /couriers/mylerz/packages/:awb/details`
 
@@ -228,7 +204,7 @@ The saved `order.courier` object looks like:
 
 ---
 
-## 8. Tracking history
+## 7. Tracking history
 
 `GET /couriers/mylerz/packages/:awb/tracking`
 
@@ -236,7 +212,7 @@ The saved `order.courier` object looks like:
 
 ---
 
-## 9. Public tracking URL
+## 8. Public tracking URL
 
 `GET /couriers/mylerz/packages/:awb/tracking-url`
 
@@ -244,7 +220,7 @@ The saved `order.courier` object looks like:
 
 ---
 
-## 10. Cancel a package
+## 9. Cancel a package
 
 `POST /couriers/mylerz/packages/:awb/cancel`
 
@@ -258,39 +234,10 @@ The saved `order.courier` object looks like:
 
 ---
 
-## 11. Manual tracking assignment (non‑Mylerz couriers)
-
-`POST /couriers/orders/:orderId/tracking`
-
-For Bosta / manual couriers where you already have a tracking number.
-
-**Request body**
-
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `name` | string | yes | one of `bosta` \| `mylerz` \| `manual` |
-| `trackingNumber` | string (≤120) | yes | |
-| `trackingUrl` | string (uri) | no | |
-| `markAsShipped` | boolean | no | default `false`; if `true`, sets status → `shipped` and sends notifications |
-| `note` | string (≤500) | no | |
-
-**Response**
-
-```json
-{
-  "success": true,
-  "message": "Courier tracking assigned",
-  "data": { "order": { /* updated order */ } }
-}
-```
-
----
-
 ## Suggested frontend flow
 
-1. On the order page (COD/confirmed order), show a **"Create Mylerz shipment"** button.
-2. (Optional) Load `#2 warehouses` + `#3 city‑zones` to let the admin pick a warehouse and confirm the zone, and call `#4 expected‑charges` to preview the fee.
-3. Click → `POST #5` with `{}` (or overrides). On success, store `order.courier.trackingNumber`.
-4. Show status via `#6`, timeline via `#8`, and a **"Track"** link via `#9`.
-5. **"Cancel shipment"** → `POST #10`, then update the order status through your orders module.
-6. For non‑Mylerz couriers, use `#11` instead of `#5`.
+1. On the order page (COD/confirmed order), show a **"Create shipment"** button.
+2. (Optional) Load `#1 warehouses` + `#2 city‑zones` to let the admin pick a warehouse and confirm the zone, and call `#3 expected‑charges` to preview the fee.
+3. Click → `POST #4` with `{}` (or overrides). On success, store `order.courier.trackingNumber`.
+4. Show status via `#5`, timeline via `#7`, and a **"Track"** link via `#8`.
+5. **"Cancel shipment"** → `POST #9`, then update the order status through your orders module.
