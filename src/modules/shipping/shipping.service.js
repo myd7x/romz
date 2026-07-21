@@ -63,7 +63,7 @@ export const getShippingFeeForCart = async ({ cartTotal, zoneCode, governorate, 
   const threshold = settings?.freeShippingThreshold;
 
   if (threshold !== null && threshold !== undefined && cartTotal >= threshold) {
-    return { fee: 0, freeShipping: true, source: "threshold" };
+    return { fee: 0, vat: 0, freeShipping: true, source: "threshold" };
   }
 
   const isCod = paymentMethod === "cod";
@@ -81,7 +81,12 @@ export const getShippingFeeForCart = async ({ cartTotal, zoneCode, governorate, 
       serviceCategoryCode: env.MYLERZ_DEFAULT_SERVICE_CATEGORY
     });
 
-    return { fee: roundMoney(charges?.ShippingFees ?? 0), freeShipping: false, source: "mylerz" };
+    return {
+      fee: roundMoney(charges?.ShippingFees ?? 0),
+      vat: roundMoney(charges?.VAT ?? 0),
+      freeShipping: false,
+      source: "mylerz"
+    };
   } catch (error) {
     // Mylerz unreachable / rejected the quote — try the configured fallback so checkout isn't blocked.
     const fallback = await resolveFallbackFee({ governorate, settings });
@@ -90,7 +95,7 @@ export const getShippingFeeForCart = async ({ cartTotal, zoneCode, governorate, 
     }
 
     console.error("[shipping] Mylerz quote failed, using fallback fee:", error.message);
-    return { fee: roundMoney(fallback), freeShipping: false, source: "fallback" };
+    return { fee: roundMoney(fallback), vat: 0, freeShipping: false, source: "fallback" };
   }
 };
 
@@ -107,7 +112,7 @@ export const quoteShipping = async ({
     throw new AppError("Cart has unavailable items", 400, cart.unavailableItems);
   }
 
-  const { fee, freeShipping } = await getShippingFeeForCart({
+  const { fee, vat, freeShipping } = await getShippingFeeForCart({
     cartTotal: cart.total,
     zoneCode,
     governorate,
@@ -120,7 +125,8 @@ export const quoteShipping = async ({
     discount: cart.discount.amount,
     cartTotal: cart.total,
     shippingFee: fee,
+    shippingVat: vat,
     freeShipping,
-    total: roundMoney(cart.total + fee)
+    total: roundMoney(cart.total + fee + vat)
   };
 };

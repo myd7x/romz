@@ -208,7 +208,7 @@ export const getMylerzExpectedCharges = async (payload) => {
     method: "POST",
     body: {
       CODValue: payload.codValue,
-      WarehouseName: payload.warehouseName,
+      WarehouseName: payload.warehouseName || env.MYLERZ_WAREHOUSE_NAME,
       CustomerZoneCode: payload.customerZoneCode,
       PackageWeight: payload.packageWeight,
       IsFulfillment: payload.isFulfillment,

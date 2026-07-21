@@ -150,7 +150,8 @@ export const createOrder = async (payload, user = null) => {
   });
   const orderNumber = await generateOrderNumber();
   const shippingFee = shipping.fee;
-  const total = roundMoney(cart.total + shippingFee);
+  const shippingVat = shipping.vat || 0;
+  const total = roundMoney(cart.total + shippingFee + shippingVat);
 
   let stockDecremented = false;
 
@@ -168,6 +169,7 @@ export const createOrder = async (payload, user = null) => {
       items: toOrderItems(cart.items),
       subtotal: cart.subtotal,
       shippingFee,
+      shippingVat,
       discount: cart.discount,
       total,
       paymentMethod: payload.paymentMethod,

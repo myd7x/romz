@@ -49,7 +49,7 @@ export const cancelMylerzPackageSchema = Joi.object({
 
 export const expectedChargesSchema = Joi.object({
   codValue: Joi.number().min(0).required(),
-  warehouseName: Joi.string().trim().max(120).required(),
+  warehouseName: Joi.string().trim().max(120).allow("").default(""),
   customerZoneCode: Joi.string().trim().max(120).required(),
   packageWeight: Joi.number().min(0).required(),
   isFulfillment: Joi.boolean().default(false),

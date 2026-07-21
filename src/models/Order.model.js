@@ -65,6 +65,8 @@ const orderSchema = new mongoose.Schema(
     items: { type: [orderItemSchema], required: true },
     subtotal: { type: Number, min: 0, required: true },
     shippingFee: { type: Number, min: 0, required: true },
+    // VAT charged by Mylerz on the shipping fee, passed on to the customer. Included in `total`.
+    shippingVat: { type: Number, min: 0, default: 0 },
     discount: {
       couponCode: { type: String, trim: true, uppercase: true, default: "" },
       amount: { type: Number, min: 0, default: 0 }

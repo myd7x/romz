@@ -110,16 +110,18 @@ Call this once the customer has selected a **zone** (and whenever the cart, coup
       "discount": 0,
       "cartTotal": 900,
       "shippingFee": 65,
+      "shippingVat": 9.1,
       "freeShipping": false,
-      "total": 965
+      "total": 974.1
     }
   }
 }
 ```
 
 - `shippingFee` — the live Mylerz delivery fee to show the customer.
-- `freeShipping: true` with `shippingFee: 0` when the cart total reaches the store's free-shipping threshold.
-- `total` = `cartTotal + shippingFee` (what the customer pays).
+- `shippingVat` — 14% VAT Mylerz charges on the shipping fee, passed on to the customer.
+- `freeShipping: true` with `shippingFee: 0` and `shippingVat: 0` when the cart total reaches the store's free-shipping threshold.
+- `total` = `cartTotal + shippingFee + shippingVat` (what the customer pays).
 
 **Errors**
 - `400 "Please select a delivery zone"` — `zoneCode` missing.
