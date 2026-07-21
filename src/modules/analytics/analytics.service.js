@@ -94,7 +94,8 @@ const getLowStockThreshold = async () => {
 
 export const getOverview = async (query) => {
   const range = toDateRange(query);
-  const cacheKey = `analytics:overview:${range.from.toISOString()}:${range.to.toISOString()}`;
+  const threshold = await getLowStockThreshold();
+  const cacheKey = `analytics:overview:${range.from.toISOString()}:${range.to.toISOString()}:${threshold}`;
 
   return withAnalyticsCache(cacheKey, async () => {
     const previousRange = {
@@ -102,7 +103,6 @@ export const getOverview = async (query) => {
       to: range.previousTo
     };
 
-    const threshold = await getLowStockThreshold();
     const [currentRevenue, previousRevenue, ordersCount, previousOrdersCount, pendingOrders, lowStock] =
       await Promise.all([
         getRevenueMetrics(range),
