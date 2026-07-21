@@ -206,9 +206,22 @@ export const getMylerzWarehouses = async () => {
   return data.Value;
 };
 
+// Special/internal Mylerz zones (Amazon fulfillment, sorting centers, CFC) are not real
+// door-to-door delivery destinations — Mylerz rejects shipments to them with
+// "Wrong city(codes,names) or zone codes". Hide them so they can't be selected.
+const SPECIAL_ZONE_PATTERN = /amazon|sorting\s*center|\bsc\s*zone\b|\bcfc\b|fulfil?lment/i;
+
+const isDeliverableZone = (zone) =>
+  !SPECIAL_ZONE_PATTERN.test(zone?.Code || "") && !SPECIAL_ZONE_PATTERN.test(zone?.EnName || "");
+
 export const getMylerzCityZones = async () => {
   const data = await mylerzRequest("/api/packages/GetCityZoneList");
-  return data.Value;
+  const cities = Array.isArray(data?.Value) ? data.Value : [];
+
+  return cities.map((city) => ({
+    ...city,
+    Zones: Array.isArray(city.Zones) ? city.Zones.filter(isDeliverableZone) : city.Zones
+  }));
 };
 
 export const getMylerzExpectedCharges = async (payload) => {
