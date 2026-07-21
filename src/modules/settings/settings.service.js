@@ -6,7 +6,6 @@ import Settings, {
   defaultContactInfo
 } from "../../models/Settings.model.js";
 import { AppError } from "../../utils/AppError.js";
-import { deleteCache } from "../../utils/cache.js";
 
 const storeSettingsQuery = { key: "store" };
 
@@ -154,8 +153,6 @@ export const updateStoreSettings = async (payload) => {
 
   settings.set(payload);
   await settings.save();
-
-  await deleteCache("analytics:*");
 
   return settings.populate(settingsPopulate);
 };
