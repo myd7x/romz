@@ -91,6 +91,28 @@ const restoreStock = async (items) => {
   );
 };
 
+// Stock is only committed for COD orders (decremented at creation) or any already-paid order.
+// Unpaid Paymob orders never decremented stock, so they must NOT be restocked on cancel.
+const orderHoldsStock = (order) =>
+  order.paymentMethod === "cod" || order.paymentStatus === "paid";
+
+// Restore stock by SKU because order snapshots do not store variant ObjectIds.
+const restoreOrderStockBySku = async (order) => {
+  await Promise.all(
+    order.items.map((item) =>
+      Product.updateOne(
+        { _id: item.product, "variants.sku": item.sku },
+        {
+          $inc: {
+            "variants.$.stock": item.qty,
+            sold: -item.qty
+          }
+        }
+      )
+    )
+  );
+};
+
 const incrementCouponUsage = async (couponCode, user = null) => {
   if (!couponCode) return;
 
@@ -277,21 +299,8 @@ export const cancelOrder = async (id, { contact = "", reason = "" } = {}, user =
     throw new AppError("Order cannot be cancelled after shipping starts", 400);
   }
 
-  if (order.paymentMethod === "cod" || order.paymentStatus === "paid") {
-    // Restore by SKU because order snapshots do not store variant ObjectIds.
-    await Promise.all(
-      order.items.map((item) =>
-        Product.updateOne(
-          { _id: item.product, "variants.sku": item.sku },
-          {
-            $inc: {
-              "variants.$.stock": item.qty,
-              sold: -item.qty
-            }
-          }
-        )
-      )
-    );
+  if (orderHoldsStock(order)) {
+    await restoreOrderStockBySku(order);
   }
 
   if (order.paymentMethod === "cod") {
@@ -315,6 +324,18 @@ export const cancelOrder = async (id, { contact = "", reason = "" } = {}, user =
 
 export const updateOrderStatus = async (id, { status, note = "" }) => {
   const order = await getOrderById(id);
+
+  // Cancelling via the admin status endpoint must return stock, just like POST /:id/cancel.
+  // Guard on the previous status so re-saving an already-cancelled order can't double-restock.
+  const isCancelling = status === "cancelled" && order.status !== "cancelled";
+
+  if (isCancelling && orderHoldsStock(order)) {
+    await restoreOrderStockBySku(order);
+
+    if (order.paymentMethod === "cod") {
+      await decrementCouponUsage(order.discount.couponCode, order.user ? { _id: order.user } : null);
+    }
+  }
 
   order.status = status;
   order.statusHistory.push({ status, at: new Date(), note });
