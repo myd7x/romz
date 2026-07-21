@@ -66,6 +66,14 @@ const shippingReturnsSchema = Joi.object({
   body: localizedLongSchema.optional()
 }).min(1);
 
+const contactInfoSchema = Joi.object({
+  isActive: Joi.boolean().optional(),
+  email: Joi.string().trim().max(200).allow("").optional(),
+  phone: Joi.string().trim().max(60).allow("").optional(),
+  address: localizedStringSchema.optional(),
+  workingHours: localizedStringSchema.optional()
+}).min(1);
+
 export const updateStoreSettingsSchema = Joi.object({
   storeName: Joi.string().trim().min(1).max(120).optional(),
   promoBar: promoBarSchema.optional(),
@@ -89,5 +97,6 @@ export const updateStoreSettingsSchema = Joi.object({
   lowStockThreshold: Joi.number().integer().min(0).optional(),
   sizeChart: sizeChartSchema.optional(),
   faqs: Joi.array().items(faqSchema).max(50).optional(),
-  shippingReturns: shippingReturnsSchema.optional()
+  shippingReturns: shippingReturnsSchema.optional(),
+  contactInfo: contactInfoSchema.optional()
 }).min(1);

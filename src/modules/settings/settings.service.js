@@ -1,5 +1,10 @@
 import Category from "../../models/Category.model.js";
-import Settings, { defaultSizeChart, defaultFaqs, defaultShippingReturns } from "../../models/Settings.model.js";
+import Settings, {
+  defaultSizeChart,
+  defaultFaqs,
+  defaultShippingReturns,
+  defaultContactInfo
+} from "../../models/Settings.model.js";
 import { AppError } from "../../utils/AppError.js";
 
 const storeSettingsQuery = { key: "store" };
@@ -21,6 +26,11 @@ const ensureSettingsDefaults = async (settings) => {
 
   if (!settings.shippingReturns) {
     settings.shippingReturns = defaultShippingReturns();
+    dirty = true;
+  }
+
+  if (!settings.contactInfo) {
+    settings.contactInfo = defaultContactInfo();
     dirty = true;
   }
 
@@ -118,6 +128,14 @@ export const updateStoreSettings = async (payload) => {
       ...payload.shippingReturns
     };
     delete payload.shippingReturns;
+  }
+
+  if (payload.contactInfo) {
+    settings.contactInfo = {
+      ...(settings.contactInfo?.toObject ? settings.contactInfo.toObject() : settings.contactInfo),
+      ...payload.contactInfo
+    };
+    delete payload.contactInfo;
   }
 
   if (payload.payments) {

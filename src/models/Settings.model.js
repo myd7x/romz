@@ -128,6 +128,29 @@ export const defaultShippingReturns = () => ({
   }
 });
 
+// Store-wide contact block (email, phone, localized address + working hours).
+const contactInfoSchema = new mongoose.Schema(
+  {
+    isActive: { type: Boolean, default: true },
+    email: { type: String, trim: true, default: "" },
+    phone: { type: String, trim: true, default: "" },
+    address: { type: localizedStringSchema, default: () => ({}) },
+    workingHours: { type: localizedStringSchema, default: () => ({}) }
+  },
+  { _id: false }
+);
+
+export const defaultContactInfo = () => ({
+  isActive: true,
+  email: "support@romz.example",
+  phone: "+20 100 000 0000",
+  address: { en: "[Street address], Cairo, Egypt", ar: "[العنوان]، القاهرة، مصر" },
+  workingHours: {
+    en: "Sunday–Thursday, 10:00 AM – 6:00 PM (EET)",
+    ar: "الأحد–الخميس، 10:00 ص – 6:00 م (بتوقيت مصر)"
+  }
+});
+
 const settingsSchema = new mongoose.Schema(
   {
     key: { type: String, default: "store", unique: true },
@@ -154,7 +177,8 @@ const settingsSchema = new mongoose.Schema(
     lowStockThreshold: { type: Number, min: 0, default: 5 },
     sizeChart: { type: sizeChartSchema, default: defaultSizeChart },
     faqs: { type: [faqSchema], default: defaultFaqs },
-    shippingReturns: { type: shippingReturnsSchema, default: defaultShippingReturns }
+    shippingReturns: { type: shippingReturnsSchema, default: defaultShippingReturns },
+    contactInfo: { type: contactInfoSchema, default: defaultContactInfo }
   },
   { timestamps: true }
 );
