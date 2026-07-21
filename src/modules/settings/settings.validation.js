@@ -10,6 +10,12 @@ const localizedStringWithDefaultsSchema = Joi.object({
   en: Joi.string().trim().max(500).allow("").default("")
 });
 
+// Longer localized text (FAQ answers, shipping/returns body).
+const localizedLongSchema = Joi.object({
+  ar: Joi.string().trim().max(2000).allow("").optional(),
+  en: Joi.string().trim().max(2000).allow("").optional()
+});
+
 const imageSchema = Joi.object({
   url: Joi.alternatives()
     .try(
@@ -46,6 +52,20 @@ const sizeChartSchema = Joi.object({
     .optional()
 }).min(1);
 
+const faqSchema = Joi.object({
+  _id: Joi.string().hex().length(24).optional(),
+  question: localizedStringSchema.optional(),
+  answer: localizedLongSchema.optional(),
+  isActive: Joi.boolean().default(true),
+  order: Joi.number().min(0).default(0)
+});
+
+const shippingReturnsSchema = Joi.object({
+  isActive: Joi.boolean().optional(),
+  title: localizedStringSchema.optional(),
+  body: localizedLongSchema.optional()
+}).min(1);
+
 export const updateStoreSettingsSchema = Joi.object({
   storeName: Joi.string().trim().min(1).max(120).optional(),
   promoBar: promoBarSchema.optional(),
@@ -67,5 +87,7 @@ export const updateStoreSettingsSchema = Joi.object({
   freeShippingThreshold: Joi.number().min(0).allow(null).optional(),
   fallbackShippingFee: Joi.number().min(0).allow(null).optional(),
   lowStockThreshold: Joi.number().integer().min(0).optional(),
-  sizeChart: sizeChartSchema.optional()
+  sizeChart: sizeChartSchema.optional(),
+  faqs: Joi.array().items(faqSchema).max(50).optional(),
+  shippingReturns: shippingReturnsSchema.optional()
 }).min(1);

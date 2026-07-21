@@ -1,5 +1,5 @@
 import Category from "../../models/Category.model.js";
-import Settings, { defaultSizeChart } from "../../models/Settings.model.js";
+import Settings, { defaultSizeChart, defaultFaqs, defaultShippingReturns } from "../../models/Settings.model.js";
 import { AppError } from "../../utils/AppError.js";
 
 const storeSettingsQuery = { key: "store" };
@@ -7,8 +7,24 @@ const storeSettingsQuery = { key: "store" };
 const settingsPopulate = [{ path: "featuredCollections", select: "name slug image parent order" }];
 
 const ensureSettingsDefaults = async (settings) => {
+  let dirty = false;
+
   if (!settings.sizeChart) {
     settings.sizeChart = defaultSizeChart();
+    dirty = true;
+  }
+
+  if (!settings.faqs || settings.faqs.length === 0) {
+    settings.faqs = defaultFaqs();
+    dirty = true;
+  }
+
+  if (!settings.shippingReturns) {
+    settings.shippingReturns = defaultShippingReturns();
+    dirty = true;
+  }
+
+  if (dirty) {
     await settings.save();
   }
 
@@ -94,6 +110,14 @@ export const updateStoreSettings = async (payload) => {
       ...payload.sizeChart
     };
     delete payload.sizeChart;
+  }
+
+  if (payload.shippingReturns) {
+    settings.shippingReturns = {
+      ...(settings.shippingReturns?.toObject ? settings.shippingReturns.toObject() : settings.shippingReturns),
+      ...payload.shippingReturns
+    };
+    delete payload.shippingReturns;
   }
 
   if (payload.payments) {
