@@ -100,10 +100,18 @@ export const createMylerzShipment = async (orderId, payload) => {
   }
 
   const shipmentPayload = [buildMylerzOrder(order, payload)];
-  const data = await mylerzRequest("/api/Orders/AddOrders", {
-    method: "POST",
-    body: shipmentPayload
-  });
+
+  let data;
+  try {
+    data = await mylerzRequest("/api/Orders/AddOrders", {
+      method: "POST",
+      body: shipmentPayload
+    });
+  } catch (error) {
+    // Log the exact payload we sent so an INPUT_INVALID can be traced to a field.
+    console.error("[couriers] AddOrders payload:", JSON.stringify(shipmentPayload));
+    throw error;
+  }
   const firstPackage = extractFirstPackage(data);
 
   if (!firstPackage?.BarCode) {

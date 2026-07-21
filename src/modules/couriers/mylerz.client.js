@@ -24,7 +24,10 @@ const parseJson = async (response) => {
 
 const assertMylerzResponse = (data) => {
   if (data?.IsErrorState) {
-    throw new AppError(data.ErrorDescription || "Mylerz request failed", 400, data.ErrorMetadata || data);
+    // Mylerz's INPUT_INVALID errors carry only a terse code in ErrorMetadata, so log
+    // the full body to make the offending field debuggable, and surface it to the caller.
+    console.error("[mylerz] request rejected:", JSON.stringify(data));
+    throw new AppError(data.ErrorDescription || "Mylerz request failed", 400, data);
   }
 
   return data;
