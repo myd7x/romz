@@ -295,7 +295,7 @@ export const getLowStock = async (query) => {
           size: "$variants.size",
           color: "$variants.color",
           stock: "$variants.stock",
-          threshold
+          threshold: { $literal: threshold }
         }
       },
       { $sort: { stock: 1, sku: 1 } },
