@@ -135,6 +135,11 @@ export const sendOrderConfirmationEmail = (order) => {
 };
 
 export const sendOrderStatusEmail = (order) => {
+  // Customers are emailed only when the order ships — no confirmation/delivered/cancelled emails.
+  if (order.status !== "shipped") {
+    return null;
+  }
+
   if (!order.customer?.email) {
     return null;
   }

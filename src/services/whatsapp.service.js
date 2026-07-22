@@ -152,6 +152,11 @@ export const sendOrderConfirmationWhatsapp = (order) => {
 };
 
 export const sendOrderStatusWhatsapp = (order) => {
+  // Customers are notified only when the order ships — no confirmation/delivered/cancelled messages.
+  if (order.status !== "shipped") {
+    return null;
+  }
+
   if (!order.customer?.phone) {
     return null;
   }
