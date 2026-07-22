@@ -325,11 +325,13 @@ export const cancelOrder = async (id, { contact = "", reason = "" } = {}, user =
 export const updateOrderStatus = async (id, { status, note = "" }) => {
   const order = await getOrderById(id);
 
-  // Cancelling via the admin status endpoint must return stock, just like POST /:id/cancel.
-  // Guard on the previous status so re-saving an already-cancelled order can't double-restock.
-  const isCancelling = status === "cancelled" && order.status !== "cancelled";
+  // Cancelling or returning via the admin status endpoint must give stock back to
+  // inventory, just like POST /:id/cancel. Guard on the previous status so an order
+  // whose stock was already returned (cancelled or returned) can't be restocked twice.
+  const stockAlreadyReturned = ["cancelled", "returned"].includes(order.status);
+  const releasesStock = ["cancelled", "returned"].includes(status) && !stockAlreadyReturned;
 
-  if (isCancelling && orderHoldsStock(order)) {
+  if (releasesStock && orderHoldsStock(order)) {
     await restoreOrderStockBySku(order);
 
     if (order.paymentMethod === "cod") {

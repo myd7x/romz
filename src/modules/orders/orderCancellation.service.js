@@ -70,3 +70,39 @@ export const applyOrderCancellation = async (order, { reason = "" } = {}) => {
 
   return order;
 };
+
+// Mark an already-loaded order as returned: restore stock + coupon, set status,
+// save, and notify the customer. Idempotent — no-op if already cancelled/returned,
+// so a returned order's goods are put back exactly once.
+export const applyOrderReturn = async (order, { reason = "" } = {}) => {
+  if (["cancelled", "returned"].includes(order.status)) {
+    return order;
+  }
+
+  await restoreOrderStock(order);
+
+  if (order.paymentMethod === "cod") {
+    await decrementCouponUsage(
+      order.discount.couponCode,
+      order.user ? { _id: order.user } : null
+    );
+  }
+
+  order.status = "returned";
+  order.statusHistory.push({
+    status: "returned",
+    at: new Date(),
+    note: reason || "Order returned"
+  });
+
+  await order.save();
+  await sendOrderStatusEmail(order);
+
+  try {
+    await sendOrderStatusWhatsapp(order);
+  } catch (error) {
+    console.error("[orders] Order status WhatsApp failed:", error);
+  }
+
+  return order;
+};

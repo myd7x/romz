@@ -3,7 +3,7 @@ import { env } from "../../config/env.js";
 import { sendOrderStatusEmail } from "../../services/email.service.js";
 import { sendOrderStatusWhatsapp } from "../../services/whatsapp.service.js";
 import { AppError } from "../../utils/AppError.js";
-import { applyOrderCancellation } from "../orders/orderCancellation.service.js";
+import { applyOrderCancellation, applyOrderReturn } from "../orders/orderCancellation.service.js";
 import { mylerzRequest } from "./mylerz.client.js";
 
 const tomorrowIso = () => {
@@ -216,9 +216,13 @@ export const syncMylerzOrderStatus = async (orderId) => {
     // applyOrderCancellation restores stock + coupon, sets status, saves and notifies.
     await applyOrderCancellation(order, { reason: `Mylerz: ${mylerzLabel}` });
     changed = true;
+  } else if (mapped === "returned" && !isTerminal) {
+    // A courier return (RTO/RTS) puts the goods back — restore stock + coupon like a cancel.
+    await applyOrderReturn(order, { reason: `Mylerz: ${mylerzLabel}` });
+    changed = true;
   } else if (
     mapped &&
-    ["shipped", "delivered", "returned"].includes(mapped) &&
+    ["shipped", "delivered"].includes(mapped) &&
     mapped !== order.status &&
     !isTerminal
   ) {

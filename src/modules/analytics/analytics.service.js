@@ -5,9 +5,16 @@ import { getCache, setCache } from "../../utils/cache.js";
 
 const analyticsTtlSeconds = 5 * 60;
 
+// Revenue is only realized for orders that were actually fulfilled. A returned or
+// cancelled order gives the goods back, so it must drop out of revenue/best-seller
+// analytics — even a Paymob order whose paymentStatus is still "paid".
 const paidRevenueCondition = {
   $or: [
-    { paymentMethod: "paymob", paymentStatus: "paid" },
+    {
+      paymentMethod: "paymob",
+      paymentStatus: "paid",
+      status: { $nin: ["returned", "cancelled"] }
+    },
     { paymentMethod: "cod", status: "delivered" }
   ]
 };
