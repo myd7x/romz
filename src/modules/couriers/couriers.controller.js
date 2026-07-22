@@ -17,6 +17,14 @@ export const getMylerzPackageStatus = async (req, res) => {
   });
 };
 
+export const syncMylerzOrderStatus = async (req, res) => {
+  const result = await couriersService.syncMylerzOrderStatus(req.params.orderId);
+  return ok(res, {
+    message: "Order status synced from Mylerz",
+    data: result
+  });
+};
+
 export const getMylerzPackageDetails = async (req, res) => {
   const details = await couriersService.getMylerzPackageDetails(req.params.awb);
   return ok(res, {

@@ -2,6 +2,7 @@ import app from "./app.js";
 import { env } from "./config/env.js";
 import { connectDatabase } from "./config/database.js";
 import { connectRedis } from "./config/redis.js";
+import { startCourierStatusSync } from "./jobs/courierStatusSync.js";
 
 let server;
 
@@ -12,6 +13,8 @@ const start = async () => {
   server = app.listen(env.PORT, () => {
     console.log(`ROMZ API listening on port ${env.PORT}`);
   });
+
+  startCourierStatusSync();
 };
 
 start().catch((error) => {

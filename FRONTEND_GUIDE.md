@@ -200,11 +200,47 @@ On success: order flips to `shipped`, customer is notified (email + WhatsApp). S
 > explicitly: `{ "cityCode": "CA", "neighborhoodCode": "Nasr City" }` (values from
 > `GET /couriers/mylerz/city-zones`).
 
-### After shipping — status / tracking (all use the barcode as `:awb`)
+### Sync the order status from Mylerz ⭐
+
+`POST /couriers/mylerz/orders/:orderId/sync-status`  (body: none)
+
+Pulls the **live** Mylerz status and writes it onto the order, so an order automatically becomes
+`delivered` / `returned` once Mylerz reports it (instead of being stuck on `shipped`). Without this
+the order keeps the status it had at shipment time.
+
+**Response**
+
+```json
+{
+  "data": {
+    "changed": true,
+    "mappedStatus": "delivered",
+    "courierStatus": "Delivered",
+    "order": { "status": "delivered", "courier": { "status": "Delivered" } },
+    "mylerz": { "StatusName": "Delivered", "Status": "Delivered", "StatusDate": "2026-07-21T..." }
+  }
+}
+```
+
+Behavior:
+- Advances the order along the delivery lifecycle only: `shipped → delivered / returned` (never
+  downgrades a terminal status).
+- Always refreshes `order.courier.status` with the live Mylerz text.
+- On a real change, the customer gets the status email + WhatsApp automatically.
+- **Cancellations** are recorded on `courier.status` (e.g. "Cancelled by Shipper") but do **not**
+  auto-cancel the order — restock/refund stays a manual admin action.
+
+**UI:** add a "Refresh status" button on the order page, and/or call it when the admin opens the
+order. (For hands-off updates, schedule it — see note below.)
+
+> To update automatically without a click, run this on a schedule (e.g. a Vercel Cron hitting an
+> internal job) for every order still in `shipped`. Ask and I'll wire up the cron job.
+
+### After shipping — raw status / tracking (all use the barcode as `:awb`)
 
 | Purpose | Endpoint |
 |---|---|
-| Status badge | `GET /couriers/mylerz/packages/:awb/status` |
+| Status badge (raw Mylerz) | `GET /couriers/mylerz/packages/:awb/status` |
 | Full details | `GET /couriers/mylerz/packages/:awb/details` |
 | Event timeline | `GET /couriers/mylerz/packages/:awb/tracking` |
 | Public tracking link | `GET /couriers/mylerz/packages/:awb/tracking-url` |

@@ -154,6 +154,113 @@ export const createMylerzShipment = async (orderId, payload) => {
   return { order, mylerz: data.Value };
 };
 
+// Order statuses that are final — never overwrite them from a courier sync.
+const TERMINAL_ORDER_STATUSES = ["delivered", "returned", "cancelled"];
+
+// Map a Mylerz package status to one of our order statuses. Returns null when it
+// doesn't map to a lifecycle change we want to apply automatically.
+export const mapMylerzStatusToOrderStatus = (status) => {
+  const blob = `${status?.StatusName || ""} ${status?.Status || ""} ${status?.PhaseName || ""}`
+    .toLowerCase()
+    .trim();
+
+  if (!blob) return null;
+  if (/return/.test(blob)) return "returned";
+  if (/cancel/.test(blob)) return "cancelled";
+  // "out for delivery" contains "deliver" but is still in transit — treat as shipped.
+  if (/out for delivery/.test(blob)) return "shipped";
+  if (/deliver/.test(blob)) return "delivered";
+  if (/transit|on the way|dispatch|picked|picking|pickup|received|sorting|at hub|shipped|processing/.test(blob)) {
+    return "shipped";
+  }
+  return null;
+};
+
+// Pull the live Mylerz status for an order and reflect it on the order.
+// Always refreshes `courier.status`; advances order.status only along the
+// delivery lifecycle (shipped → delivered / returned). Cancellations are
+// recorded on the courier but NOT auto-applied to the order (stock/refunds
+// are an explicit admin decision).
+export const syncMylerzOrderStatus = async (orderId) => {
+  const order = await Order.findById(orderId);
+
+  if (!order) {
+    throw new AppError("Order not found", 404);
+  }
+
+  if (!order.courier?.trackingNumber) {
+    throw new AppError("Order has no Mylerz tracking number", 400);
+  }
+
+  const status = await getMylerzPackageStatus(order.courier.trackingNumber);
+
+  order.courier.status = status?.Status || status?.StatusName || order.courier.status;
+  order.courier.lastSyncedAt = new Date();
+
+  const mapped = mapMylerzStatusToOrderStatus(status);
+  let changed = false;
+
+  if (
+    mapped &&
+    ["shipped", "delivered", "returned"].includes(mapped) &&
+    mapped !== order.status &&
+    !TERMINAL_ORDER_STATUSES.includes(order.status)
+  ) {
+    order.status = mapped;
+    order.statusHistory.push({
+      status: mapped,
+      at: new Date(),
+      note: `Mylerz status: ${status?.Status || status?.StatusName || mapped}`
+    });
+    changed = true;
+  }
+
+  await order.save();
+
+  if (changed) {
+    await sendOrderStatusEmail(order);
+    try {
+      await sendOrderStatusWhatsapp(order);
+    } catch (error) {
+      console.error("[couriers] Order status WhatsApp failed:", error);
+    }
+  }
+
+  return {
+    order,
+    mylerz: status,
+    mappedStatus: mapped,
+    changed,
+    courierStatus: order.courier.status
+  };
+};
+
+// Sync every order that is still in flight (has a Mylerz tracking number and is not in a
+// terminal state). Runs sequentially with a small delay so we don't hammer Mylerz.
+export const syncAllShippedOrders = async ({ delayMs = 300 } = {}) => {
+  const orders = await Order.find({
+    "courier.trackingNumber": { $nin: ["", null] },
+    status: { $nin: TERMINAL_ORDER_STATUSES }
+  })
+    .select("_id orderNumber")
+    .lean();
+
+  let changed = 0;
+  const errors = [];
+
+  for (const o of orders) {
+    try {
+      const result = await syncMylerzOrderStatus(o._id);
+      if (result.changed) changed += 1;
+    } catch (error) {
+      errors.push({ orderNumber: o.orderNumber, message: error.message });
+    }
+    if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+
+  return { scanned: orders.length, changed, failed: errors.length, errors };
+};
+
 export const getMylerzPackageStatus = async (awb) => {
   const data = await mylerzRequest("/api/packages/GetPackageStatus", {
     query: { AWB: awb }

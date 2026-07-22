@@ -28,6 +28,11 @@ router.post(
   validate(createMylerzShipmentSchema),
   asyncHandler(couriersController.createMylerzShipment)
 );
+router.post(
+  "/mylerz/orders/:orderId/sync-status",
+  validate(orderIdParamsSchema, "params"),
+  asyncHandler(couriersController.syncMylerzOrderStatus)
+);
 router.get(
   "/mylerz/packages/:awb/status",
   validate(awbParamsSchema, "params"),

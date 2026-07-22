@@ -64,7 +64,10 @@ export const env = {
   MYLERZ_DEFAULT_ADDRESS_CATEGORY: process.env.MYLERZ_DEFAULT_ADDRESS_CATEGORY || "H",
   MYLERZ_DEFAULT_PRODUCT_CATEGORY: process.env.MYLERZ_DEFAULT_PRODUCT_CATEGORY || "Fashion",
   MYLERZ_DEFAULT_WEIGHT_KG: Number(process.env.MYLERZ_DEFAULT_WEIGHT_KG || 1),
-  MYLERZ_CURRENCY: process.env.MYLERZ_CURRENCY || "EGP"
+  MYLERZ_CURRENCY: process.env.MYLERZ_CURRENCY || "EGP",
+  // Background job that keeps order statuses in sync with Mylerz (delivered/returned).
+  COURIER_SYNC_ENABLED: String(process.env.COURIER_SYNC_ENABLED ?? "true") === "true",
+  COURIER_SYNC_INTERVAL_MINUTES: Number(process.env.COURIER_SYNC_INTERVAL_MINUTES || 30)
 };
 
 export const isProduction = env.NODE_ENV === "production";
