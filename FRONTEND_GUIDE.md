@@ -227,8 +227,9 @@ Behavior:
   downgrades a terminal status).
 - Always refreshes `order.courier.status` with the live Mylerz text.
 - On a real change, the customer gets the status email + WhatsApp automatically.
-- **Cancellations** are recorded on `courier.status` (e.g. "Cancelled by Shipper") but do **not**
-  auto-cancel the order — restock/refund stays a manual admin action.
+- **Cancellations** (Mylerz "Cancelled by Shipper") auto-set the order to `cancelled` and
+  **restore product stock + coupon usage**, then notify the customer. (Refunds for prepaid orders
+  remain a manual step.)
 
 **UI:** add a "Refresh status" button on the order page, and/or call it when the admin opens the
 order. (For hands-off updates, schedule it — see note below.)

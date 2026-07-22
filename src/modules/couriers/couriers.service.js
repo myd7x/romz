@@ -3,6 +3,7 @@ import { env } from "../../config/env.js";
 import { sendOrderStatusEmail } from "../../services/email.service.js";
 import { sendOrderStatusWhatsapp } from "../../services/whatsapp.service.js";
 import { AppError } from "../../utils/AppError.js";
+import { applyOrderCancellation } from "../orders/orderCancellation.service.js";
 import { mylerzRequest } from "./mylerz.client.js";
 
 const tomorrowIso = () => {
@@ -175,7 +176,7 @@ export const mapMylerzStatusToOrderStatus = (status) => {
     .trim();
 
   if (!blob) return null;
-  if (/return/.test(blob)) return "returned";
+  if (/return|\brto\b|\brts\b/.test(blob)) return "returned";
   if (/cancel/.test(blob)) return "cancelled";
   // "out for delivery" contains "deliver" but is still in transit — treat as shipped.
   if (/out for delivery/.test(blob)) return "shipped";
@@ -187,10 +188,9 @@ export const mapMylerzStatusToOrderStatus = (status) => {
 };
 
 // Pull the live Mylerz status for an order and reflect it on the order.
-// Always refreshes `courier.status`; advances order.status only along the
-// delivery lifecycle (shipped → delivered / returned). Cancellations are
-// recorded on the courier but NOT auto-applied to the order (stock/refunds
-// are an explicit admin decision).
+// Always refreshes `courier.status`; advances order.status along the delivery
+// lifecycle (shipped → delivered / returned) and, on a Mylerz cancellation,
+// cancels the order AND restores stock/coupon usage.
 export const syncMylerzOrderStatus = async (orderId) => {
   const order = await Order.findById(orderId);
 
@@ -208,32 +208,37 @@ export const syncMylerzOrderStatus = async (orderId) => {
   order.courier.lastSyncedAt = new Date();
 
   const mapped = mapMylerzStatusToOrderStatus(status);
+  const isTerminal = TERMINAL_ORDER_STATUSES.includes(order.status);
+  const mylerzLabel = status?.Status || status?.StatusName || mapped;
   let changed = false;
 
-  if (
+  if (mapped === "cancelled" && !isTerminal) {
+    // applyOrderCancellation restores stock + coupon, sets status, saves and notifies.
+    await applyOrderCancellation(order, { reason: `Mylerz: ${mylerzLabel}` });
+    changed = true;
+  } else if (
     mapped &&
     ["shipped", "delivered", "returned"].includes(mapped) &&
     mapped !== order.status &&
-    !TERMINAL_ORDER_STATUSES.includes(order.status)
+    !isTerminal
   ) {
     order.status = mapped;
     order.statusHistory.push({
       status: mapped,
       at: new Date(),
-      note: `Mylerz status: ${status?.Status || status?.StatusName || mapped}`
+      note: `Mylerz status: ${mylerzLabel}`
     });
+    await order.save();
     changed = true;
-  }
-
-  await order.save();
-
-  if (changed) {
     await sendOrderStatusEmail(order);
     try {
       await sendOrderStatusWhatsapp(order);
     } catch (error) {
       console.error("[couriers] Order status WhatsApp failed:", error);
     }
+  } else {
+    // No lifecycle change — just persist the refreshed courier.status.
+    await order.save();
   }
 
   return {
