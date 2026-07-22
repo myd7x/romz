@@ -36,14 +36,24 @@ const buildPieces = (order, payload) => {
     }));
   }
 
-  return order.items.map((item, index) => ({
-    pieceNo: index + 1,
-    Weight: String(env.MYLERZ_DEFAULT_WEIGHT_KG),
-    ItemCategory: payload.productCategory || env.MYLERZ_DEFAULT_PRODUCT_CATEGORY,
-    Dimensions: payload.dimensions || "",
-    SpecialNotes: `${item.nameSnapshot.en} / ${item.sku} / qty ${item.qty}`,
-    Quantity: item.qty
-  }));
+  // Mylerz treats one order as a single parcel: send ONE piece with the combined quantity.
+  // (Multiple pieces are rejected — "Package_Serial :1 Pieces is more than one".)
+  const totalQty = order.items.reduce((sum, item) => sum + item.qty, 0);
+  const notes = order.items
+    .map((item) => `${item.nameSnapshot.en} / ${item.sku} x${item.qty}`)
+    .join(", ")
+    .slice(0, 500);
+
+  return [
+    {
+      pieceNo: 1,
+      Weight: String(payload.totalWeight ?? env.MYLERZ_DEFAULT_WEIGHT_KG),
+      ItemCategory: payload.productCategory || env.MYLERZ_DEFAULT_PRODUCT_CATEGORY,
+      Dimensions: payload.dimensions || "",
+      SpecialNotes: notes,
+      Quantity: totalQty
+    }
+  ];
 };
 
 const buildMylerzOrder = (order, payload) => ({
