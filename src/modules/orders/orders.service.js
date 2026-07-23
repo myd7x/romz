@@ -1,8 +1,8 @@
 import Coupon from "../../models/Coupon.model.js";
 import Order from "../../models/Order.model.js";
 import Product from "../../models/Product.model.js";
-import { sendOrderStatusEmail } from "../../services/email.service.js";
-import { sendOrderStatusWhatsapp } from "../../services/whatsapp.service.js";
+import { sendOrderConfirmationEmail, sendOrderStatusEmail } from "../../services/email.service.js";
+import { sendOrderConfirmationWhatsapp, sendOrderStatusWhatsapp } from "../../services/whatsapp.service.js";
 import { AppError } from "../../utils/AppError.js";
 import { buildMeta, buildPagination } from "../../utils/apiFeatures.js";
 import { priceCart } from "../cart/cart.service.js";
@@ -204,7 +204,19 @@ export const createOrder = async (payload, user = null) => {
       await incrementCouponUsage(cart.discount.couponCode, user);
     }
 
-    // No confirmation notifications — customers are contacted only when the order ships.
+    // Notify the customer that the order was received (email + WhatsApp).
+    try {
+      await sendOrderConfirmationEmail(order);
+    } catch (error) {
+      console.error("[orders] Order confirmation email failed:", error);
+    }
+
+    try {
+      await sendOrderConfirmationWhatsapp(order);
+    } catch (error) {
+      console.error("[orders] Order confirmation WhatsApp failed:", error);
+    }
+
     return order;
   } catch (error) {
     if (stockDecremented) {

@@ -34,6 +34,8 @@ export const env = {
   SMTP_USER: process.env.SMTP_USER || "",
   SMTP_PASS: process.env.SMTP_PASS || "",
   SMTP_FROM: process.env.SMTP_FROM || "ROMZ <no-reply@romz.local>",
+  // Public HTTPS URL of the logo shown in email headers (e.g. a Cloudinary URL). Falls back to a text wordmark.
+  EMAIL_LOGO_URL: process.env.EMAIL_LOGO_URL || "",
   CONTACT_EMAIL: process.env.CONTACT_EMAIL || process.env.ADMIN_EMAIL || "admin@romz.local",
   WHATSAPP_BASE_URL: process.env.WHATSAPP_BASE_URL || "https://graph.facebook.com",
   WHATSAPP_API_VERSION: process.env.WHATSAPP_API_VERSION || "v21.0",

@@ -94,29 +94,241 @@ const escapeHtml = (value) =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 
-export const sendOtpEmail = (user, otpCode) =>
-  sendEmail({
+// Email header: logo image on a light band (matched to the logo's background) if
+// EMAIL_LOGO_URL is set, else the ROMZ text wordmark on a dark band.
+const emailHeader = () => {
+  if (env.EMAIL_LOGO_URL) {
+    return `<tr><td style="background:#f0ebf0;padding:20px 32px;text-align:center;border-bottom:1px solid #e6e2e6;">
+        <img src="${env.EMAIL_LOGO_URL}" alt="ROMZ" height="44" style="height:44px;width:auto;display:inline-block;border:0;outline:none;text-decoration:none;" />
+      </td></tr>`;
+  }
+  return `<tr><td style="background:#111111;padding:24px 32px;text-align:center;">
+        <div style="color:#ffffff;font-size:26px;font-weight:800;letter-spacing:6px;">ROMZ</div>
+      </td></tr>`;
+};
+
+// Branded email for a one-time code or token (OTP, password reset).
+export const renderCodeEmail = ({ heading, intro, code, expiry, accent = "#111111" }) => {
+  const value = String(code ?? "");
+  const short = value.length <= 8;
+  const codeStyle = short
+    ? "font-size:34px;letter-spacing:10px;"
+    : "font-size:18px;letter-spacing:1px;word-break:break-all;";
+
+  return `
+  <div style="background:#f4f4f5;padding:24px 0;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
+    <table role="presentation" align="center" width="600" style="max-width:600px;width:100%;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #ececec;">
+      ${emailHeader()}
+
+      <tr><td style="padding:32px 32px 4px 32px;">
+        <h1 style="margin:0;font-size:22px;color:#111111;">${escapeHtml(heading)}</h1>
+        <p style="margin:12px 0 0 0;font-size:15px;color:#555555;line-height:1.6;">${escapeHtml(intro)}</p>
+      </td></tr>
+
+      <tr><td style="padding:24px 32px 0 32px;">
+        <table role="presentation" width="100%" style="background:#f7f7f8;border:1px solid #ececec;border-radius:10px;">
+          <tr><td align="center" style="padding:24px 16px;">
+            <div style="${codeStyle}font-weight:800;color:#111111;font-family:'Courier New',Courier,monospace;">${escapeHtml(value)}</div>
+          </td></tr>
+        </table>
+      </td></tr>
+
+      <tr><td style="padding:16px 32px 0 32px;">
+        <p style="margin:0;font-size:13px;color:#999999;line-height:1.6;">${escapeHtml(expiry)}</p>
+      </td></tr>
+
+      <tr><td style="padding:28px 32px 32px 32px;">
+        <div style="border-top:1px solid #eeeeee;padding-top:20px;text-align:center;">
+          <p style="margin:0;font-size:13px;color:#999999;line-height:1.6;">If you didn't request this, you can safely ignore this email.</p>
+        </div>
+      </td></tr>
+    </table>
+  </div>`;
+};
+
+export const sendOtpEmail = (user, otpCode) => {
+  if (!user?.email) {
+    return null;
+  }
+
+  return sendEmail({
     to: user.email,
     subject: "Verify your ROMZ account",
     text: `Your ROMZ verification code is ${otpCode}. It expires in 10 minutes.`,
-    html: `
-      <p>Your ROMZ verification code is:</p>
-      <h2>${otpCode}</h2>
-      <p>It expires in 10 minutes.</p>
-    `,
+    html: renderCodeEmail({
+      heading: "Verify your account",
+      intro: `Hi${user.name ? " " + user.name : ""}, use the code below to finish verifying your ROMZ account.`,
+      code: otpCode,
+      expiry: "This code expires in 10 minutes."
+    })
   });
+};
 
-export const sendPasswordResetEmail = (user, resetToken) =>
-  sendEmail({
+export const sendPasswordResetEmail = (user, resetToken) => {
+  if (!user?.email) {
+    return null;
+  }
+
+  return sendEmail({
     to: user.email,
     subject: "Reset your ROMZ password",
     text: `Use this token to reset your ROMZ password: ${resetToken}. It expires in 15 minutes.`,
-    html: `
-      <p>Use this token to reset your ROMZ password:</p>
-      <p><strong>${resetToken}</strong></p>
-      <p>It expires in 15 minutes.</p>
-    `,
+    html: renderCodeEmail({
+      heading: "Reset your password",
+      intro: "Use the code below to reset your ROMZ password.",
+      code: resetToken,
+      expiry: "This code expires in 15 minutes."
+    })
   });
+};
+
+const money = (value) => `EGP ${Number(value || 0).toFixed(2)}`;
+
+const formatDate = (date) => {
+  try {
+    return new Date(date || Date.now()).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric"
+    });
+  } catch {
+    return "";
+  }
+};
+
+const STATUS_COLORS = {
+  pending: "#6b7280",
+  confirmed: "#2563eb",
+  processing: "#2563eb",
+  shipped: "#d97706",
+  delivered: "#16a34a",
+  cancelled: "#dc2626",
+  returned: "#7c3aed"
+};
+
+const renderItemsRows = (items = []) =>
+  items
+    .map(
+      (it) => `
+      <tr>
+        <td style="padding:12px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#111111;">
+          ${escapeHtml(it.nameSnapshot?.en || "Item")}
+          <div style="color:#999999;font-size:12px;margin-top:3px;">
+            ${escapeHtml(it.sku || "")}${it.size ? " &middot; " + escapeHtml(it.size) : ""}${it.color?.name ? " &middot; " + escapeHtml(it.color.name) : ""}
+          </div>
+        </td>
+        <td align="center" style="padding:12px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#666666;">${it.qty}</td>
+        <td align="right" style="padding:12px 0;border-bottom:1px solid #eeeeee;font-size:14px;color:#111111;white-space:nowrap;">${money(it.unitPrice * it.qty)}</td>
+      </tr>`
+    )
+    .join("");
+
+const totalsRow = (label, value, opts = {}) => {
+  const weight = opts.bold ? "700" : "400";
+  const size = opts.bold ? "16px" : "14px";
+  const labelColor = opts.bold ? "#111111" : "#666666";
+  const valueColor = opts.color || (opts.bold ? "#111111" : "#333333");
+  return `
+    <tr>
+      <td style="padding:5px 0;font-size:${size};color:${labelColor};font-weight:${weight};">${label}</td>
+      <td align="right" style="padding:5px 0;font-size:${size};color:${valueColor};font-weight:${weight};white-space:nowrap;">${value}</td>
+    </tr>`;
+};
+
+export const renderOrderEmail = (order, { heading, intro, accent = "#111111", showTracking = false }) => {
+  const addr = order.shippingAddress || {};
+  const addressLine = [addr.street, addr.apartment, addr.city, addr.governorate]
+    .filter(Boolean)
+    .map(escapeHtml)
+    .join(", ");
+  const statusColor = STATUS_COLORS[order.status] || "#6b7280";
+  const discountAmount = order.discount?.amount || 0;
+  const vat = order.shippingVat || 0;
+
+  const trackingBlock =
+    showTracking && order.courier?.trackingNumber
+      ? `
+      <tr><td style="padding:8px 32px 0 32px;">
+        <table role="presentation" width="100%" style="background:#fff8ef;border:1px solid #f0d9b5;border-radius:8px;">
+          <tr><td style="padding:16px 20px;">
+            <div style="font-size:11px;color:#9a6a12;text-transform:uppercase;letter-spacing:1px;">Tracking number</div>
+            <div style="font-size:20px;color:#111111;font-weight:700;margin-top:4px;letter-spacing:1px;">${escapeHtml(order.courier.trackingNumber)}</div>
+            <div style="font-size:12px;color:#999999;margin-top:6px;">Carrier: Mylerz</div>
+          </td></tr>
+        </table>
+      </td></tr>`
+      : "";
+
+  return `
+  <div style="background:#f4f4f5;padding:24px 0;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
+    <table role="presentation" align="center" width="600" style="max-width:600px;width:100%;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #ececec;">
+      ${emailHeader()}
+
+      <tr><td style="padding:32px 32px 4px 32px;">
+        <h1 style="margin:0;font-size:22px;color:#111111;">${escapeHtml(heading)}</h1>
+        <p style="margin:12px 0 0 0;font-size:15px;color:#555555;line-height:1.6;">${escapeHtml(intro)}</p>
+      </td></tr>
+
+      <tr><td style="padding:20px 32px 0 32px;">
+        <table role="presentation" width="100%">
+          <tr>
+            <td style="font-size:13px;color:#999999;">Order</td>
+            <td align="right" style="font-size:13px;color:#111111;font-weight:700;">${escapeHtml(order.orderNumber)}</td>
+          </tr>
+          <tr>
+            <td style="font-size:13px;color:#999999;padding-top:5px;">Date</td>
+            <td align="right" style="font-size:13px;color:#555555;padding-top:5px;">${formatDate(order.createdAt)}</td>
+          </tr>
+          <tr>
+            <td style="font-size:13px;color:#999999;padding-top:5px;">Status</td>
+            <td align="right" style="padding-top:5px;">
+              <span style="display:inline-block;background:${statusColor};color:#ffffff;font-size:12px;font-weight:700;padding:3px 12px;border-radius:999px;text-transform:capitalize;">${escapeHtml(order.status)}</span>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+
+      ${trackingBlock}
+
+      <tr><td style="padding:24px 32px 0 32px;">
+        <table role="presentation" width="100%">
+          <tr>
+            <td style="font-size:11px;color:#999999;text-transform:uppercase;letter-spacing:1px;padding-bottom:6px;border-bottom:2px solid #111111;">Item</td>
+            <td align="center" style="font-size:11px;color:#999999;text-transform:uppercase;letter-spacing:1px;padding-bottom:6px;border-bottom:2px solid #111111;">Qty</td>
+            <td align="right" style="font-size:11px;color:#999999;text-transform:uppercase;letter-spacing:1px;padding-bottom:6px;border-bottom:2px solid #111111;">Total</td>
+          </tr>
+          ${renderItemsRows(order.items)}
+        </table>
+      </td></tr>
+
+      <tr><td style="padding:16px 32px 0 32px;">
+        <table role="presentation" width="100%">
+          ${totalsRow("Subtotal", money(order.subtotal))}
+          ${discountAmount > 0 ? totalsRow(`Discount${order.discount?.couponCode ? " (" + escapeHtml(order.discount.couponCode) + ")" : ""}`, "-" + money(discountAmount), { color: "#16a34a" }) : ""}
+          ${totalsRow("Shipping", money(order.shippingFee))}
+          ${vat > 0 ? totalsRow("Shipping VAT", money(vat)) : ""}
+          <tr><td colspan="2" style="border-top:1px solid #eeeeee;padding-top:8px;"></td></tr>
+          ${totalsRow("Total", money(order.total), { bold: true })}
+        </table>
+      </td></tr>
+
+      ${
+        addressLine
+          ? `<tr><td style="padding:24px 32px 0 32px;">
+        <div style="font-size:11px;color:#999999;text-transform:uppercase;letter-spacing:1px;">Shipping to</div>
+        <div style="font-size:14px;color:#333333;margin-top:6px;line-height:1.5;">${escapeHtml(order.customer?.name || "")}<br>${addressLine}<br>${escapeHtml(order.customer?.phone || "")}</div>
+      </td></tr>`
+          : ""
+      }
+
+      <tr><td style="padding:32px;">
+        <div style="border-top:1px solid #eeeeee;padding-top:20px;text-align:center;">
+          <p style="margin:0;font-size:13px;color:#999999;line-height:1.6;">Thank you for shopping with ROMZ.<br>Questions? Just reply to this email and we'll help.</p>
+        </div>
+      </td></tr>
+    </table>
+  </div>`;
+};
 
 export const sendOrderConfirmationEmail = (order) => {
   if (!order.customer?.email) {
@@ -126,11 +338,12 @@ export const sendOrderConfirmationEmail = (order) => {
   return sendEmail({
     to: order.customer.email,
     subject: `ROMZ order ${order.orderNumber} received`,
-    text: `Your order ${order.orderNumber} was received. Total: EGP ${order.total}.`,
-    html: `
-      <p>Your order <strong>${order.orderNumber}</strong> was received.</p>
-      <p>Total: <strong>EGP ${order.total}</strong></p>
-    `,
+    text: `Hi ${order.customer?.name || ""}, we've received your order ${order.orderNumber}. Total: ${money(order.total)}. We'll notify you when it ships.`,
+    html: renderOrderEmail(order, {
+      heading: `Thank you${order.customer?.name ? ", " + order.customer.name : ""}!`,
+      intro:
+        "We've received your order and it's now being prepared. We'll send you another message as soon as it ships."
+    })
   });
 };
 
@@ -146,14 +359,13 @@ export const sendOrderStatusEmail = (order) => {
 
   return sendEmail({
     to: order.customer.email,
-    subject: `ROMZ order ${order.orderNumber} is ${order.status}`,
-    text: `Your order ${order.orderNumber} status is now ${order.status}.`,
-    html: `
-      <p>
-        Your order <strong>${order.orderNumber}</strong>
-        status is now <strong>${order.status}</strong>.
-      </p>
-    `,
+    subject: `Your ROMZ order ${order.orderNumber} has shipped`,
+    text: `Good news! Your order ${order.orderNumber} has shipped.${order.courier?.trackingNumber ? " Tracking number: " + order.courier.trackingNumber + "." : ""}`,
+    html: renderOrderEmail(order, {
+      heading: "Your order is on its way!",
+      intro: "Great news — your order has been shipped and is on its way to you.",
+      showTracking: true
+    })
   });
 };
 
