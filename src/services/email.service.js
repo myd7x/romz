@@ -54,7 +54,7 @@ export const verifyEmailConnection = async () => {
   }
 };
 
-export const sendEmail = async ({ to, subject, text, html }) => {
+export const sendEmail = async ({ to, subject, text, html, attachments }) => {
   const mailer = getTransporter();
 
   if (!mailer) {
@@ -75,6 +75,7 @@ export const sendEmail = async ({ to, subject, text, html }) => {
       subject,
       text,
       html,
+      ...(attachments?.length ? { attachments } : {}),
     });
 
     console.log("[email] Message sent:", result.messageId);
@@ -94,12 +95,59 @@ const escapeHtml = (value) =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 
-// Email header: logo image on a light band (matched to the logo's background) if
-// EMAIL_LOGO_URL is set, else the ROMZ text wordmark on a dark band.
-const emailHeader = () => {
-  if (env.EMAIL_LOGO_URL) {
+// The logo is embedded in each email as an inline (CID) attachment so it renders
+// even in clients that block remote images. We fetch the image from
+// EMAIL_LOGO_URL once and cache the bytes for the process lifetime.
+const LOGO_CID = "romz-logo";
+// logoState.status: "idle" (not fetched) | "ready" (attachment cached) | "failed"
+let logoState = { status: "idle", attachment: null };
+
+const logoFilename = () => {
+  try {
+    const path = new URL(env.EMAIL_LOGO_URL).pathname;
+    const base = path.split("/").pop();
+    return base && /\.[a-z0-9]+$/i.test(base) ? base : "logo.png";
+  } catch {
+    return "logo.png";
+  }
+};
+
+// Returns a nodemailer attachment for the logo (inline, referenced via cid),
+// or null when no logo URL is configured or the image can't be fetched.
+export const ensureLogoAttachment = async () => {
+  if (!env.EMAIL_LOGO_URL) return null;
+  if (logoState.status === "ready") return logoState.attachment;
+  if (logoState.status === "failed") return null;
+
+  try {
+    const res = await fetch(env.EMAIL_LOGO_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const content = Buffer.from(await res.arrayBuffer());
+    const attachment = {
+      filename: logoFilename(),
+      content,
+      cid: LOGO_CID,
+      contentType: res.headers.get("content-type") || undefined,
+    };
+    logoState = { status: "ready", attachment };
+    return attachment;
+  } catch (error) {
+    console.error(
+      "[email] Logo fetch failed; falling back to remote URL/wordmark:",
+      error.message
+    );
+    logoState = { status: "failed", attachment: null };
+    return null;
+  }
+};
+
+// Email header: inline (cid) logo when available, else the remote logo image on a
+// light band, else the ROMZ text wordmark on a dark band.
+const emailHeader = (logo) => {
+  const src = logo ? `cid:${logo.cid}` : env.EMAIL_LOGO_URL;
+  if (src) {
     return `<tr><td style="background:#f0ebf0;padding:20px 32px;text-align:center;border-bottom:1px solid #e6e2e6;">
-        <img src="${env.EMAIL_LOGO_URL}" alt="ROMZ" height="44" style="height:44px;width:auto;display:inline-block;border:0;outline:none;text-decoration:none;" />
+        <img src="${src}" alt="ROMZ" height="44" style="height:44px;width:auto;display:inline-block;border:0;outline:none;text-decoration:none;" />
       </td></tr>`;
   }
   return `<tr><td style="background:#111111;padding:24px 32px;text-align:center;">
@@ -108,7 +156,7 @@ const emailHeader = () => {
 };
 
 // Branded email for a one-time code or token (OTP, password reset).
-export const renderCodeEmail = ({ heading, intro, code, expiry, accent = "#111111" }) => {
+export const renderCodeEmail = ({ heading, intro, code, expiry, accent = "#111111", logo = null }) => {
   const value = String(code ?? "");
   const short = value.length <= 8;
   const codeStyle = short
@@ -118,7 +166,7 @@ export const renderCodeEmail = ({ heading, intro, code, expiry, accent = "#11111
   return `
   <div style="background:#f4f4f5;padding:24px 0;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
     <table role="presentation" align="center" width="600" style="max-width:600px;width:100%;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #ececec;">
-      ${emailHeader()}
+      ${emailHeader(logo)}
 
       <tr><td style="padding:32px 32px 4px 32px;">
         <h1 style="margin:0;font-size:22px;color:#111111;">${escapeHtml(heading)}</h1>
@@ -146,10 +194,12 @@ export const renderCodeEmail = ({ heading, intro, code, expiry, accent = "#11111
   </div>`;
 };
 
-export const sendOtpEmail = (user, otpCode) => {
+export const sendOtpEmail = async (user, otpCode) => {
   if (!user?.email) {
     return null;
   }
+
+  const logo = await ensureLogoAttachment();
 
   return sendEmail({
     to: user.email,
@@ -159,15 +209,19 @@ export const sendOtpEmail = (user, otpCode) => {
       heading: "Verify your account",
       intro: `Hi${user.name ? " " + user.name : ""}, use the code below to finish verifying your ROMZ account.`,
       code: otpCode,
-      expiry: "This code expires in 10 minutes."
-    })
+      expiry: "This code expires in 10 minutes.",
+      logo
+    }),
+    attachments: logo ? [logo] : undefined
   });
 };
 
-export const sendPasswordResetEmail = (user, resetToken) => {
+export const sendPasswordResetEmail = async (user, resetToken) => {
   if (!user?.email) {
     return null;
   }
+
+  const logo = await ensureLogoAttachment();
 
   return sendEmail({
     to: user.email,
@@ -177,8 +231,10 @@ export const sendPasswordResetEmail = (user, resetToken) => {
       heading: "Reset your password",
       intro: "Use the code below to reset your ROMZ password.",
       code: resetToken,
-      expiry: "This code expires in 15 minutes."
-    })
+      expiry: "This code expires in 15 minutes.",
+      logo
+    }),
+    attachments: logo ? [logo] : undefined
   });
 };
 
@@ -235,7 +291,7 @@ const totalsRow = (label, value, opts = {}) => {
     </tr>`;
 };
 
-export const renderOrderEmail = (order, { heading, intro, accent = "#111111", showTracking = false }) => {
+export const renderOrderEmail = (order, { heading, intro, accent = "#111111", showTracking = false, logo = null }) => {
   const addr = order.shippingAddress || {};
   const addressLine = [addr.street, addr.apartment, addr.city, addr.governorate]
     .filter(Boolean)
@@ -262,7 +318,7 @@ export const renderOrderEmail = (order, { heading, intro, accent = "#111111", sh
   return `
   <div style="background:#f4f4f5;padding:24px 0;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
     <table role="presentation" align="center" width="600" style="max-width:600px;width:100%;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #ececec;">
-      ${emailHeader()}
+      ${emailHeader(logo)}
 
       <tr><td style="padding:32px 32px 4px 32px;">
         <h1 style="margin:0;font-size:22px;color:#111111;">${escapeHtml(heading)}</h1>
@@ -330,10 +386,12 @@ export const renderOrderEmail = (order, { heading, intro, accent = "#111111", sh
   </div>`;
 };
 
-export const sendOrderConfirmationEmail = (order) => {
+export const sendOrderConfirmationEmail = async (order) => {
   if (!order.customer?.email) {
     return null;
   }
+
+  const logo = await ensureLogoAttachment();
 
   return sendEmail({
     to: order.customer.email,
@@ -342,12 +400,14 @@ export const sendOrderConfirmationEmail = (order) => {
     html: renderOrderEmail(order, {
       heading: `Thank you${order.customer?.name ? ", " + order.customer.name : ""}!`,
       intro:
-        "We've received your order and it's now being prepared. We'll send you another message as soon as it ships."
-    })
+        "We've received your order and it's now being prepared. We'll send you another message as soon as it ships.",
+      logo
+    }),
+    attachments: logo ? [logo] : undefined
   });
 };
 
-export const sendOrderStatusEmail = (order) => {
+export const sendOrderStatusEmail = async (order) => {
   // Customers are emailed only when the order ships — no confirmation/delivered/cancelled emails.
   if (order.status !== "shipped") {
     return null;
@@ -357,6 +417,8 @@ export const sendOrderStatusEmail = (order) => {
     return null;
   }
 
+  const logo = await ensureLogoAttachment();
+
   return sendEmail({
     to: order.customer.email,
     subject: `Your ROMZ order ${order.orderNumber} has shipped`,
@@ -364,8 +426,10 @@ export const sendOrderStatusEmail = (order) => {
     html: renderOrderEmail(order, {
       heading: "Your order is on its way!",
       intro: "Great news — your order has been shipped and is on its way to you.",
-      showTracking: true
-    })
+      showTracking: true,
+      logo
+    }),
+    attachments: logo ? [logo] : undefined
   });
 };
 
