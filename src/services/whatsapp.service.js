@@ -140,14 +140,17 @@ export const sendPasswordResetWhatsapp = (user, resetToken) => {
   });
 };
 
+const money = (value) => `EGP ${Number(value || 0).toFixed(2)}`;
+
 export const sendOrderConfirmationWhatsapp = (order) => {
   if (!order.customer?.phone) {
     return null;
   }
 
+  // Mirror the order confirmation email: acknowledge receipt + total.
   return sendWhatsapp({
     to: order.customer.phone,
-    text: `Your ROMZ order ${order.orderNumber} was received. Total: EGP ${order.total}.`,
+    text: `Hi ${order.customer?.name || ""}, we've received your order ${order.orderNumber}. Total: ${money(order.total)}. We'll notify you when it ships.`,
   });
 };
 
@@ -161,9 +164,10 @@ export const sendOrderStatusWhatsapp = (order) => {
     return null;
   }
 
+  // Mirror the shipped email: shipped notice + tracking number when available.
   return sendWhatsapp({
     to: order.customer.phone,
-    text: `Your ROMZ order ${order.orderNumber} status is now ${order.status}.`,
+    text: `Good news! Your ROMZ order ${order.orderNumber} has shipped.${order.courier?.trackingNumber ? " Tracking number: " + order.courier.trackingNumber + "." : ""}`,
   });
 };
 
