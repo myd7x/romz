@@ -6,6 +6,7 @@ import { sendOrderConfirmationWhatsapp, sendOrderStatusWhatsapp } from "../../se
 import { AppError } from "../../utils/AppError.js";
 import { buildMeta, buildPagination } from "../../utils/apiFeatures.js";
 import { priceCart } from "../cart/cart.service.js";
+import { refundPaidPaymobOrder } from "../payments/paymob.service.js";
 import { getShippingFeeForCart } from "../shipping/shipping.service.js";
 
 const orderPrefix = "RZ";
@@ -289,6 +290,24 @@ export const getOrderById = async (id) => {
   return order;
 };
 
+// Auto-refund a paid Paymob order when it is cancelled/returned. Never blocks the
+// cancellation itself: a failed refund is logged and flagged in the status note so
+// an admin can refund manually, rather than trapping the order in a paid state.
+// Returns a suffix appended to the status-history note.
+const attemptPaymobRefund = async (order) => {
+  if (order.paymentMethod !== "paymob" || order.paymentStatus !== "paid") {
+    return "";
+  }
+
+  try {
+    await refundPaidPaymobOrder(order);
+    return " — Paymob refund issued";
+  } catch (error) {
+    console.error("[orders] Paymob auto-refund failed:", error);
+    return " — Paymob refund FAILED (manual refund needed)";
+  }
+};
+
 export const cancelOrder = async (id, { contact = "", reason = "" } = {}, user = null) => {
   const order = await Order.findById(id);
 
@@ -312,9 +331,15 @@ export const cancelOrder = async (id, { contact = "", reason = "" } = {}, user =
     await decrementCouponUsage(order.discount.couponCode, order.user ? { _id: order.user } : null);
   }
 
+  const refundNote = await attemptPaymobRefund(order);
+
   order.status = "cancelled";
   order.cancelledReason = reason;
-  order.statusHistory.push({ status: "cancelled", at: new Date(), note: reason || "Order cancelled" });
+  order.statusHistory.push({
+    status: "cancelled",
+    at: new Date(),
+    note: `${reason || "Order cancelled"}${refundNote}`
+  });
   await order.save();
   await sendOrderStatusEmail(order);
 
@@ -344,8 +369,12 @@ export const updateOrderStatus = async (id, { status, note = "" }) => {
     }
   }
 
+  // Auto-refund Paymob payments only on the transition into cancelled/returned,
+  // so re-saving an already-cancelled order can't trigger a second refund.
+  const refundNote = releasesStock ? await attemptPaymobRefund(order) : "";
+
   order.status = status;
-  order.statusHistory.push({ status, at: new Date(), note });
+  order.statusHistory.push({ status, at: new Date(), note: `${note}${refundNote}` });
   await order.save();
   await sendOrderStatusEmail(order);
 

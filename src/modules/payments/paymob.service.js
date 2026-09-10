@@ -490,3 +490,38 @@ export const handlePaymobWebhook = async (payload, query = {}) => {
     success: transaction.success === true
   };
 };
+
+/**
+ * Refund a paid Paymob order back to the customer (full order total). Used by the
+ * order-cancellation flow. Endpoint and auth confirmed against Paymob's official
+ * "Refund & Void & Capture" Postman collection:
+ *   POST /api/acceptance/void_refund/refund
+ *   Authorization: Token <secret_key>
+ *   { transaction_id, amount_cents }
+ *
+ * Only acts on a paid Paymob order and flips paymentStatus to "refunded" on
+ * success. The caller is responsible for status-history notes and saving the
+ * order. Returns false (no-op) for orders that aren't paid Paymob orders; throws
+ * on missing config/transaction id or a rejected refund so the caller can react.
+ */
+export const refundPaidPaymobOrder = async (order) => {
+  if (order.paymentMethod !== "paymob" || order.paymentStatus !== "paid") {
+    return false;
+  }
+
+  if (!order.paymobTransactionId) {
+    throw new AppError("Cannot refund order: missing Paymob transaction id", 400);
+  }
+
+  if (!env.PAYMOB_SECRET_KEY) {
+    throw new AppError("Cannot refund order: PAYMOB_SECRET_KEY is not configured", 500);
+  }
+
+  await paymobSecretFetch("/api/acceptance/void_refund/refund", {
+    transaction_id: Number(order.paymobTransactionId),
+    amount_cents: amountToCents(order.total)
+  });
+
+  order.paymentStatus = "refunded";
+  return true;
+};
